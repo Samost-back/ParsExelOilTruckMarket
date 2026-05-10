@@ -1,4 +1,4 @@
-CREATE TABLE public."CompanyOlivs" (
+CREATE TABLE public."company_olivs" (
     id bigint GENERATED ALWAYS AS IDENTITY,
     name_company text NOT NULL,
     PRIMARY KEY (id)
@@ -13,15 +13,15 @@ CREATE TABLE public.olivs (
     packaging_volume text NOT NULL,
     description text NOT NULL,
     type_oil text,
-    low_level_SAPS boolean,
+    low_level_saps boolean,
     manufacturers_tolerances text,
-    "ACEA" text,
-    "API" text,
+    "acea" text,
+    "api" text,
     color_liquid text,
-    "ISO_VG_viscosity_grade" text,
-    "standart_G" text,
-    "DOT" text,
-    viscosity_SAE text,
+    "iso_vg_viscosity_grade" text,
+    "standart_g" text,
+    "dot" text,
+    viscosity_sae text,
     quantity integer,
     PRIMARY KEY (id),
     UNIQUE (company_id, articul),
