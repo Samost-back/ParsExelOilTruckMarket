@@ -1,6 +1,7 @@
 CREATE TABLE public."company_olivs" (
     id bigint GENERATED ALWAYS AS IDENTITY,
     name_company text NOT NULL,
+    UNIQUE (name_company),
     PRIMARY KEY (id)
 );
 
