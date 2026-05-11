@@ -337,7 +337,9 @@ for (const b of blocks) {
       dot: dotValue,
       quantity: DEFAULT_QUANTITY,
       price:
-        v.recommended_price != null ? Math.round(v.recommended_price) : null,
+        v.recommended_price != null
+          ? Math.round(v.recommended_price / 10) * 10
+          : null,
     });
   }
 }
