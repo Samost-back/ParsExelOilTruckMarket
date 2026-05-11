@@ -189,9 +189,10 @@ function buildName({
   ) {
     typeAdj = " " + TYPE_OIL_DISPLAY[type_oil][sectionInfo.gender];
   }
+  const unit = sectionInfo && sectionInfo.unit ? sectionInfo.unit : "л";
   const parts = [
     `${prefix} ${baseName}${typeAdj}`.trim(),
-    `${packaging_volume} л`,
+    `${packaging_volume} ${unit}`,
   ];
   if (packaging_volume >= COVERALL_FROM_VOLUME) parts.push("+Комбінезон");
   return parts.join(" | ");
@@ -324,7 +325,7 @@ for (const b of blocks) {
       }),
       articul: parseInt(v.articul, 10),
       packaging_volume: v.packaging_volume,
-      description: b.descriptionRaw || "",
+      description: "",
       viscosity_sae: sae,
       type_oil: desc.type_oil,
       low_level_saps: desc.low_level_saps,
