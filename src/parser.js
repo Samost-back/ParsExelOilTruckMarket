@@ -283,7 +283,7 @@ const oils = [];
 const skipped = [];
 for (const b of blocks) {
   const inlineDescRe =
-    /\(([^)]*(?:синтет|мінеральн|low\s*saps|mid\s*saps|full\s*saps|колір|G\s*1[123]))/;
+    /\([^)]*(?:синтет|мінеральн|low\s*saps|mid\s*saps|full\s*saps|колір|G\s*1[123]|жовт|червон|зелен|син|лілов|фіолетов|чорн|білий|прозор|помаранч|оранжев|рожев|блакитн|бордов)[^)]*\)/i;
   const inlineDescMatch = b.name.match(inlineDescRe);
   if (inlineDescMatch) {
     b.descriptionRaw = b.descriptionRaw
@@ -323,7 +323,7 @@ for (const b of blocks) {
         packaging_volume: v.packaging_volume,
       }),
       articul: parseInt(v.articul, 10),
-      packaging_volume: v.packaging_volume.toString(),
+      packaging_volume: v.packaging_volume,
       description: b.descriptionRaw || "",
       viscosity_sae: sae,
       type_oil: desc.type_oil,

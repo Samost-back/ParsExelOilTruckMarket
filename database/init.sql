@@ -11,7 +11,7 @@ CREATE TABLE public.olivs (
     name_type_oil text NOT NULL,
     name text NOT NULL,
     articul integer NOT NULL,
-    packaging_volume text NOT NULL,
+    packaging_volume numeric(5,1) NOT NULL,
     description text NOT NULL,
     type_oil text,
     low_level_saps boolean,
@@ -28,7 +28,7 @@ CREATE TABLE public.olivs (
     UNIQUE (company_id, articul),
     CONSTRAINT company_fkey
         FOREIGN KEY (company_id)
-        REFERENCES public."CompanyOlivs"(id)
+        REFERENCES public."company_olivs"(id)
 );
 
 CREATE TABLE public.oils_price (
