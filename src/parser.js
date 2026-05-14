@@ -194,7 +194,7 @@ function buildName({
     `${prefix} ${baseName}${typeAdj}`.trim(),
     `${packaging_volume} ${unit}`,
   ];
-  if (packaging_volume >= COVERALL_FROM_VOLUME) parts.push("+Комбінезон");
+  if (packaging_volume === COVERALL_FROM_VOLUME) parts.push("+Комбінезон");
   return parts.join(" | ");
 }
 function newBlock(section) {
