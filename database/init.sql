@@ -10,7 +10,7 @@ CREATE TABLE public.olivs (
     company_id bigint NOT NULL,
     name_type_oil text NOT NULL,
     name text NOT NULL,
-    articul integer NOT NULL,
+    articul text NOT NULL,
     packaging_volume numeric(5,1) NOT NULL,
     description text NOT NULL,
     type_oil text,
