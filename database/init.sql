@@ -24,7 +24,7 @@ CREATE TABLE public.olivs (
     "dot" text,
     viscosity_sae text,
     quantity integer,
-    сar_brand text[],
+    car_brand text[],
     PRIMARY KEY (id),
     UNIQUE (company_id, articul),
     CONSTRAINT company_fkey

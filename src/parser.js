@@ -14,6 +14,8 @@ const {
   DEFAULT_QUANTITY,
   COLOR_PATTERNS,
   STANDART_G_RE,
+  CAR_BRANDS,
+  CAR_BRAND_KEYS_SORTED,
 } = require("./constants");
 const [, , companyArg, excelArg] = process.argv;
 if (!companyArg || !excelArg) {
@@ -118,6 +120,16 @@ function parseDescription(text) {
   }
   return result;
 }
+function extractCarBrand(manufEntry) {
+  const lower = manufEntry.toLowerCase();
+  for (const brand of CAR_BRAND_KEYS_SORTED) {
+    if (lower.startsWith(brand)) {
+      const nextChar = lower[brand.length];
+      if (!nextChar || /[\s\-,;:]/.test(nextChar)) return CAR_BRANDS[brand];
+    }
+  }
+  return null;
+}
 function finalize(o) {
   return {
     acea: o.ACEA.length ? o.ACEA.join(", ") : null,
@@ -125,10 +137,11 @@ function finalize(o) {
     manufacturers_tolerances: o.manufacturers.length
       ? o.manufacturers.join("; ")
       : null,
+    car_brand: o.carBrands.size > 0 ? Array.from(o.carBrands) : null,
   };
 }
 function parseSpecs(text) {
-  const out = { ACEA: [], API: [], manufacturers: [] };
+  const out = { ACEA: [], API: [], manufacturers: [], carBrands: new Set() };
   if (!text) return finalize(out);
   const lines = text
     .split(/[\n\r]/)
@@ -160,6 +173,8 @@ function parseSpecs(text) {
         );
       } else {
         out.manufacturers.push(t);
+        const brand = extractCarBrand(t);
+        if (brand) out.carBrands.add(brand);
       }
     }
   }
@@ -337,6 +352,7 @@ for (const b of blocks) {
       standart_g: desc.standart_g,
       dot: dotValue,
       quantity: DEFAULT_QUANTITY,
+      car_brand: specs.car_brand,
       price:
         v.recommended_price != null
           ? Math.round(v.recommended_price / 10) * 10
@@ -378,9 +394,9 @@ async function saveToDb() {
           company_id, name_type_oil, name, articul, packaging_volume, description,
           type_oil, low_level_saps, manufacturers_tolerances,
           acea, api, color_liquid, iso_vg_viscosity_grade,
-          standart_g, dot, viscosity_sae, quantity
+          standart_g, dot, viscosity_sae, quantity, car_brand
         ) VALUES (
-          $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17
+          $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18
         )
         ON CONFLICT (company_id, articul) DO UPDATE SET
           name_type_oil            = EXCLUDED.name_type_oil,
@@ -397,7 +413,8 @@ async function saveToDb() {
           standart_g               = EXCLUDED.standart_g,
           dot                      = EXCLUDED.dot,
           viscosity_sae            = EXCLUDED.viscosity_sae,
-          quantity                 = EXCLUDED.quantity
+          quantity                 = EXCLUDED.quantity,
+          car_brand                = EXCLUDED.car_brand
         RETURNING id, (xmax = 0) AS is_insert`,
         [
           companyId,
@@ -417,6 +434,7 @@ async function saveToDb() {
           oil.dot,
           oil.viscosity_sae,
           oil.quantity,
+          oil.car_brand,
         ],
       );
       const oilId = oilRes.rows[0].id;

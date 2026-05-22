@@ -68,6 +68,53 @@ const COLOR_PATTERNS = [
 
 const STANDART_G_RE = /\bG\s*(1[123])(\++)?(?!\d)/i;
 
+const CAR_BRANDS = {
+  'opel/vauxhall': 'Opel/Vauxhall',
+  'new holland':   'New Holland',
+  'john deere':    'John Deere',
+  'mercedes':      'Mercedes-Benz',
+  'mb':            'Mercedes-Benz',
+  'gm':            'General Motors',
+  'vw':            'Volkswagen',
+  'bmw':           'BMW',
+  'ford':          'Ford',
+  'volvo':         'Volvo',
+  'renault':       'Renault',
+  'porsche':       'Porsche',
+  'man':           'MAN',
+  'mitsubishi':    'Mitsubishi',
+  'toyota':        'Toyota',
+  'honda':         'Honda',
+  'hyundai':       'Hyundai',
+  'nissan':        'Nissan',
+  'mazda':         'Mazda',
+  'subaru':        'Subaru',
+  'chrysler':      'Chrysler',
+  'fiat':          'Fiat',
+  'opel':          'Opel',
+  'vauxhall':      'Vauxhall',
+  'peugeot':       'Peugeot',
+  'citroen':       'Citroen',
+  'daf':           'DAF',
+  'iveco':         'Iveco',
+  'cummins':       'Cummins',
+  'caterpillar':   'Caterpillar',
+  'detroit':       'Detroit',
+  'mtu':           'MTU',
+  'zf':            'ZF',
+  'allison':       'Allison',
+  'scania':        'Scania',
+  'mack':          'Mack',
+  'deutz':         'Deutz',
+  'jcb':           'JCB',
+  'liebherr':      'Liebherr',
+  'komatsu':       'Komatsu',
+  'kubota':        'Kubota',
+  'case':          'Case',
+};
+
+const CAR_BRAND_KEYS_SORTED = Object.keys(CAR_BRANDS).sort((a, b) => b.length - a.length);
+
 const COLUMN_KEYWORDS = {
   name: ['найменування'],
   spec: ['специфікації'],
@@ -93,4 +140,6 @@ module.exports = {
   DEFAULT_QUANTITY,
   COLOR_PATTERNS,
   STANDART_G_RE,
+  CAR_BRANDS,
+  CAR_BRAND_KEYS_SORTED,
 };
