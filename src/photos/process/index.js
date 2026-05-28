@@ -20,7 +20,7 @@ const fs = require("fs");
 const path = require("path");
 const sharp = require("sharp");
 const { Client } = require("pg");
-const CFG = require("../../PhotoTruckMarket/config.cjs");
+const CFG = require("./template-config.cjs");
 
 const COUNTRY_FALLBACK = "Німеччина";
 const TEMPLATES_DIR = path.resolve(__dirname, "..", "..", "PhotoTruckMarket", "templates");

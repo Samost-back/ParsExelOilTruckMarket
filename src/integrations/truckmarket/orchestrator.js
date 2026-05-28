@@ -2,7 +2,7 @@
 // SRP: НЕ знає про конкретні маркетплейси і HTTP — лише про реєстр і репозиторій.
 // Залежності — через конструктор. CLI entry-point — окремо у run.js.
 
-const { log } = require("./infra/logger");
+const { log } = require("../../shared/infra/logger");
 const { RunStats } = require("./reporting/run-stats");
 
 class Orchestrator {

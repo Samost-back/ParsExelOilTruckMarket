@@ -1,14 +1,14 @@
 // CLI поверх CleanupService — заміна старого ad-hoc скрипта.
 // Запуск:
-//   node src/integration/delete-listings.js              # видалити ВСІ опубліковані
-//   node src/integration/delete-listings.js 5445 5446    # видалити конкретні listing_id
+//   node src/integrations/truckmarket/cli/delete-listings.js          # видалити ВСІ опубліковані
+//   node src/integrations/truckmarket/cli/delete-listings.js 5445 5446  # видалити конкретні listing_id
 
 require("dotenv").config();
-const { withDb } = require("./infra/db");
-const { log } = require("./infra/logger");
-const { TruckMarketClient } = require("./client");
-const { OilsRepo } = require("./repositories/oils-repo");
-const { CleanupService } = require("./services/cleanup-service");
+const { withDb } = require("../../../shared/infra/db");
+const { log } = require("../../../shared/infra/logger");
+const { TruckMarketClient } = require("../client");
+const { OilsRepo } = require("../repositories/oils-repo");
+const { CleanupService } = require("../services/cleanup-service");
 
 (async () => {
   const explicitIds = process.argv.slice(2).filter((a) => /^\d+$/.test(a)).map(Number);

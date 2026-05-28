@@ -2,23 +2,23 @@
 // і з'єднуємо їх. Якщо змінити маркетплейс або вимкнути OpenAI — правимо тут.
 //
 // Запуск:
-//   node src/integration/run.js               # всі pending з OpenAI
-//   node src/integration/run.js 10            # перші 10 з OpenAI
-//   node src/integration/run.js 10 --no-ai    # перші 10 без OpenAI-описів
+//   node src/integrations/truckmarket/run.js               # всі pending з OpenAI
+//   node src/integrations/truckmarket/run.js 10            # перші 10 з OpenAI
+//   node src/integrations/truckmarket/run.js 10 --no-ai    # перші 10 без OpenAI-описів
 
 require("dotenv").config();
-const { withDb } = require("./infra/db");
-const { log } = require("./infra/logger");
+const { withDb } = require("../../shared/infra/db");
+const { log } = require("../../shared/infra/logger");
 const { TruckMarketClient } = require("./client");
 const { OilsRepo } = require("./repositories/oils-repo");
 const { ListingPublishService } = require("./services/listing-publish-service");
 const { PhotoUploadService } = require("./services/photo-upload-service");
-const { DescriptionService } = require("./services/description-service");
+const { DescriptionService } = require("../openai/description-service");
 const { TruckMarketHandler } = require("./handlers/truckmarket-handler");
 const { buildDefaultRegistry } = require("./handlers/handler-registry");
 const { Orchestrator } = require("./orchestrator");
-const { OpenAIClient } = require("./openai/openai-client");
-const { DescriptionGenerator } = require("./openai/description-generator");
+const { OpenAIClient } = require("../openai/openai-client");
+const { DescriptionGenerator } = require("../openai/description-generator");
 
 function parseArgs() {
   const args = process.argv.slice(2);

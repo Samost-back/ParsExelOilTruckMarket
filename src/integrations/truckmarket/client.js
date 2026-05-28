@@ -1,8 +1,8 @@
 const fs = require("fs");
 const path = require("path");
 const FormData = require("form-data");
-const { HttpClient } = require("./infra/http-client");
-const { TruckTokenProvider } = require("./infra/truck-token-provider");
+const { HttpClient } = require("../../shared/infra/http-client");
+const { TruckTokenProvider } = require("./truck-token-provider");
 
 // Тонкий API-клієнт TruckMarket. Знає тільки про ендпоінти, transport-логіку
 // делегує HttpClient (DRY: retry-on-401, validateStatus, timeout).
