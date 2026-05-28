@@ -8,7 +8,7 @@ services:
       POSTGRES_DB: ${PG_DB:-truck_oil_db}
     volumes:
       - pg_data:/var/lib/postgresql/data
-      - ./database:/docker-entrypoint-initdb.d:ro
+      - ./database/migrations:/docker-entrypoint-initdb.d:ro
     ports:
       - "${PG_PORT:-5432}:5432"
     healthcheck:
