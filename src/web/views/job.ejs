@@ -1,0 +1,42 @@
+<h1>Job #<%= job.id %> — <%= job.kind %></h1>
+
+<section class="card">
+  <div class="job-meta">
+    <div><strong>Статус:</strong> <span id="job-status" class="badge badge-<%= job.status %>"><%= job.status %></span></div>
+    <div><strong>Створено:</strong> <%= new Date(job.created_at).toLocaleString("uk-UA") %></div>
+    <% if (job.started_at) { %>
+      <div><strong>Стартував:</strong> <%= new Date(job.started_at).toLocaleString("uk-UA") %></div>
+    <% } %>
+    <% if (job.finished_at) { %>
+      <div><strong>Завершився:</strong> <%= new Date(job.finished_at).toLocaleString("uk-UA") %></div>
+    <% } %>
+  </div>
+  <% if (job.error) { %>
+    <div class="flash flash-error"><%= job.error %></div>
+  <% } %>
+</section>
+
+<section class="card">
+  <h2>Лог</h2>
+  <pre id="job-log" class="job-log"><%= job.log || "" %></pre>
+</section>
+
+<a href="/" class="btn-link">← Дашборд</a>
+
+<% if (job.status === "running" || job.status === "pending") { %>
+<script>
+  const status = document.getElementById("job-status");
+  const logEl = document.getElementById("job-log");
+  const evt = new EventSource("/jobs/<%= job.id %>/stream");
+  evt.addEventListener("line", (e) => {
+    logEl.textContent += e.data + "\n";
+    logEl.scrollTop = logEl.scrollHeight;
+  });
+  evt.addEventListener("done", (e) => {
+    const data = JSON.parse(e.data);
+    status.textContent = data.status;
+    status.className = "badge badge-" + data.status;
+    evt.close();
+  });
+</script>
+<% } %>

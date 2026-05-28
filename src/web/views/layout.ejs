@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title><%= title || "Oil Pipeline" %></title>
+  <script src="https://unpkg.com/htmx.org@2.0.3/dist/htmx.min.js" defer></script>
+  <link rel="stylesheet" href="/public/style.css" />
+</head>
+<body>
+  <header class="topbar">
+    <a href="/" class="brand">Oil Pipeline</a>
+    <% if (user) { %>
+      <nav>
+        <span class="user"><%= user.username %></span>
+        <form method="post" action="/logout" style="display:inline">
+          <button class="btn-link" type="submit">Вийти</button>
+        </form>
+      </nav>
+    <% } %>
+  </header>
+
+  <main class="container">
+    <% if (typeof flash !== "undefined" && flash) { %>
+      <div class="flash flash-<%= flash.type %>"><%= flash.message %></div>
+    <% } %>
+    <%- body %>
+  </main>
+
+  <footer class="footer">
+    <small>Pars Excel Oil Truck Market</small>
+  </footer>
+</body>
+</html>

@@ -12,6 +12,7 @@ pnpm-debug.log*
 
 # === Photo assets (large binary, regenerable) ===
 photos_storage/
+uploads/
 PRODUCT FOTO-*.zip
 *.zip
 

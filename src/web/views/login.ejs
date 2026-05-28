@@ -1,0 +1,15 @@
+<div class="card login-card">
+  <h1>Вхід</h1>
+  <% if (error) { %><div class="flash flash-error"><%= error %></div><% } %>
+  <form method="post" action="/login">
+    <label>
+      <span>Логін</span>
+      <input name="username" required autofocus />
+    </label>
+    <label>
+      <span>Пароль</span>
+      <input name="password" type="password" required />
+    </label>
+    <button type="submit" class="btn-primary">Увійти</button>
+  </form>
+</div>

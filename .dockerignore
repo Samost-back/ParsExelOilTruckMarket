@@ -1,0 +1,31 @@
+node_modules
+npm-debug.log*
+.git
+.gitignore
+
+# Великі файли (заллються томами)
+photos_storage
+uploads
+*.zip
+"PRODUCT FOTO-*"
+Excel/
+
+# Локальне середовище
+.env
+.env.*
+!.env.example
+
+# IDE / OS
+.vscode
+.idea
+*.swp
+.DS_Store
+Thumbs.db
+
+# Тимчасові каталоги розпаковок (як ваші c:/tmp/photo_inspect)
+tmp
+.tmp
+
+# Документація (не критично, але зайве в image)
+*.md
+README*
