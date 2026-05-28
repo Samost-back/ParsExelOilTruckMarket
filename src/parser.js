@@ -338,7 +338,7 @@ for (const b of blocks) {
         type_oil: desc.type_oil,
         packaging_volume: v.packaging_volume,
       }),
-      articul: parseInt(v.articul, 10),
+      articul: v.articul,
       packaging_volume: v.packaging_volume,
       description: "",
       viscosity_sae: sae,

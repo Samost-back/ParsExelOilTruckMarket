@@ -1,0 +1,13 @@
+{
+  "name": "barrel-generator",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Static web app for compositing barrel PNGs onto templates. Pure client-side, runs in browser.",
+  "scripts": {
+    "start": "serve .",
+    "dev": "serve ."
+  },
+  "devDependencies": {
+    "serve": "^14.2.4"
+  }
+}
