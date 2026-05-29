@@ -24,6 +24,26 @@ class JobsRepo {
     );
   }
 
+  async setPid(id, pid) {
+    await this.db.query(`UPDATE web_jobs SET pid = $2 WHERE id = $1`, [id, pid || null]);
+  }
+
+  /**
+   * Позначає всі залишені 'running'/'pending' jobs як 'cancelled'.
+   * Викликається при старті server.js — якщо контейнер перезапустився,
+   * їхні child-процеси точно мертві.
+   */
+  async reapOrphans() {
+    const r = await this.db.query(`
+      UPDATE web_jobs
+         SET status = 'cancelled',
+             finished_at = NOW(),
+             log = log || E'\n⊘ Reaped (server restart)'
+       WHERE status IN ('running', 'pending')
+   RETURNING id, kind`);
+    return r.rows;
+  }
+
   async appendLog(id, line) {
     await this.db.query(
       `UPDATE web_jobs SET log = log || $2 || E'\n' WHERE id = $1`,

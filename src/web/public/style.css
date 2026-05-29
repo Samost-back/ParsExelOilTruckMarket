@@ -9,8 +9,8 @@
   --border-strong: #3a3a44;
 
   --text: #e4e4e7;
-  --text-muted: #a1a1aa;
-  --text-soft: #71717a;
+  --text-muted: #b8b8c0; /* було #a1a1aa — підняв контраст для WCAG AA */
+  --text-soft: #8b8b94;  /* було #71717a — теж піднято */
 
   --accent: #7c3aed;
   --accent-hover: #8b5cf6;
@@ -118,23 +118,50 @@ h3 { font-size: 0.95rem; color: var(--text); margin-bottom: 0.75rem; }
 }
 .btn-link:hover { color: var(--text); background: var(--surface-2); border-color: var(--border-strong); }
 
-/* У таблицях .btn-link потрібен компактний, без border, без фіксованої висоти */
+/* У таблицях кнопки-дії компактні, але виглядають як справжні кнопки */
 .actions-cell .btn-link,
-.jobs-table .btn-link,
-.topbar .btn-link {
+.jobs-table .btn-link {
   height: auto;
-  padding: 0.3rem 0.6rem;
-  font-size: 0.82rem;
-  border: 1px solid transparent;
-  background: transparent;
-  text-decoration: underline dotted;
-  text-underline-offset: 3px;
+  padding: 0.32rem 0.7rem;
+  font-size: 0.8rem;
+  font-weight: 500;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  text-decoration: none;
+  color: var(--text);
 }
 .actions-cell .btn-link:hover,
 .jobs-table .btn-link:hover {
-  background: var(--surface-2);
-  border-color: var(--border);
-  text-decoration: none;
+  background: var(--surface-3);
+  border-color: var(--border-strong);
+  color: var(--text);
+}
+/* Семантичні кольори для action-кнопок */
+.actions-cell .btn-link[style*="danger"],
+.actions-cell button[style*="danger"] {
+  color: var(--danger) !important;
+  border-color: rgba(239,68,68,0.3);
+  background: rgba(239,68,68,0.06);
+}
+.actions-cell .btn-link[style*="danger"]:hover {
+  background: rgba(239,68,68,0.12) !important;
+  border-color: var(--danger);
+}
+.actions-cell .btn-link[style*="success"],
+.actions-cell button[style*="success"] {
+  color: var(--success) !important;
+  border-color: rgba(34,197,94,0.3);
+  background: rgba(34,197,94,0.06);
+}
+.actions-cell .btn-link[style*="success"]:hover {
+  background: rgba(34,197,94,0.12) !important;
+  border-color: var(--success);
+}
+/* Топбар окремо — там потрібна стара тонка кнопка "Вийти" */
+.topbar .btn-link {
+  height: 36px;
+  padding: 0 0.95rem;
 }
 
 /* === Container === */
@@ -152,6 +179,12 @@ h3 { font-size: 0.95rem; color: var(--text); margin-bottom: 0.75rem; }
   color: var(--text-muted);
   font-size: 0.9rem;
   margin-top: 0.2rem;
+}
+.page-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-wrap: wrap;
 }
 
 /* === Card === */
@@ -514,12 +547,13 @@ textarea {
   font-weight: 600;
   min-width: 22px;
   height: 18px;
-  padding: 0 0.4rem;
+  padding: 0 0.45rem;
   border-radius: 999px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 .status-tab.active .count { background: rgba(124,58,237,0.25); color: var(--accent); }
 .status-tab .dot {
@@ -795,4 +829,7 @@ tbody tr:last-child td { border-bottom: 0; }
   h1 { font-size: 1.25rem; }
   .stat-value { font-size: 1.6rem; }
   .form-row { grid-template-columns: 1fr; }
+  .page-header { flex-direction: column; align-items: stretch; gap: 0.8rem; }
+  .page-header-actions { flex-direction: column; align-items: stretch; }
+  .page-header-actions > * { width: 100%; }
 }

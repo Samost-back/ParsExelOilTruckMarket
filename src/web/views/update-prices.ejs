@@ -1,0 +1,67 @@
+<div class="page-header">
+  <div>
+    <a href="/companies/<%= company.id %>" class="btn-link breadcrumb-back">← <%= company.name_company %></a>
+    <h1>Оновити ціни</h1>
+    <p class="subtitle">Новий прайс перезапише ціни в БД і на TruckMarket</p>
+  </div>
+</div>
+
+<section class="card">
+  <form method="post" action="/companies/<%= company.id %>/update-prices" enctype="multipart/form-data" class="form">
+    <label class="field">
+      <span class="field-label">Excel прайс <span class="req">*</span></span>
+      <div class="file-drop file-drop--file" data-target="xlsx">
+        <input type="file" name="xlsx" accept=".xlsx,.xls,.xlsm,.csv,.ods" required />
+        <div class="file-drop-text" data-default>
+          <strong>Натисніть або перетягніть файл сюди</strong>
+          <span class="field-hint">
+            Той самий формат, що і при імпорті — назва, артикул, упаковка, ціна.
+            <br>Оливо ідентифікуються за артикулом, поточні ціни закриваються (зберігається історія).
+          </span>
+        </div>
+        <div class="file-drop-selected" data-selected hidden>
+          <div class="file-pill"><span class="file-icon">📄</span> <span data-name></span></div>
+          <button type="button" class="btn-clear" data-clear>Очистити</button>
+        </div>
+      </div>
+    </label>
+
+    <div class="form-actions">
+      <button type="submit" class="btn-primary">Оновити ціни</button>
+      <a href="/companies/<%= company.id %>" class="btn-link">Скасувати</a>
+    </div>
+  </form>
+</section>
+
+<section class="card info-card">
+  <h3>Що відбувається</h3>
+  <ol class="steps">
+    <li><strong>Парсинг прайсу</strong> — знаходимо оливо за артикулом, не створюємо нових</li>
+    <li><strong>БД: oils_price</strong> — стара ціна закривається <code>valid_to=NOW()</code>, нова <code>INSERT</code> (історія зберігається)</li>
+    <li><strong>TruckMarket</strong> — для опублікованих оливо викликається <code>updateListing</code> з новою ціною. Решта залишається в БД, оновиться при публікації</li>
+  </ol>
+</section>
+
+<script>
+  (function () {
+    document.querySelectorAll(".file-drop").forEach(function (drop) {
+      var input = drop.querySelector("input[type=file]");
+      var dflt  = drop.querySelector("[data-default]");
+      var sel   = drop.querySelector("[data-selected]");
+      var nameEl = sel.querySelector("[data-name]");
+      var clearBtn = sel.querySelector("[data-clear]");
+      function render() {
+        var f = input.files && input.files[0];
+        if (!f) { dflt.hidden = false; sel.hidden = true; drop.classList.remove("has-file"); return; }
+        dflt.hidden = true; sel.hidden = false; drop.classList.add("has-file");
+        nameEl.textContent = f.name;
+      }
+      input.addEventListener("change", render);
+      clearBtn.addEventListener("click", function (e) {
+        e.preventDefault(); e.stopPropagation();
+        input.value = ""; render();
+      });
+      render();
+    });
+  })();
+</script>

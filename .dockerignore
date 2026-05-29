@@ -26,6 +26,5 @@ Thumbs.db
 tmp
 .tmp
 
-# Документація (не критично, але зайве в image)
 *.md
 README*

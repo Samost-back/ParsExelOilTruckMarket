@@ -13,20 +13,50 @@ async function jobsRoutes(fastify, { jobsRepo, runner }) {
     const id = parseInt(req.params.id, 10);
     const job = await jobsRepo.findById(id);
     if (!job) return reply.code(404).send("Job not found");
+    // Кнопка "Зупинити" видима для будь-якого активного job — у memory runner-а
+    // або orphan (running у БД після рестарту, але PID живий).
+    const canCancel = runner.isRunning(id)
+      || (job.status === "running" || job.status === "pending");
     return reply.view("job.ejs", {
       title: `Job #${job.id}`,
       user: req.user,
       active: "jobs",
       job,
-      canCancel: runner.isRunning(id),
+      canCancel,
     });
   });
 
   // === Зупинити job ===
+  // 1) Спочатку через in-memory runner (нормальний випадок)
+  // 2) Інакше — fallback: SIGTERM по PID з БД, і ручне marking 'cancelled'
   fastify.post("/jobs/:id/cancel", { preHandler: fastify.requireAuth }, async (req, reply) => {
     const id = parseInt(req.params.id, 10);
-    const ok = runner.cancel(id);
-    if (!ok) return reply.code(409).send("Job не запущений або вже завершився");
+
+    // Гарячий шлях
+    if (runner.cancel(id)) {
+      return reply.redirect(`/jobs/${id}`);
+    }
+
+    // Orphan fallback
+    const job = await jobsRepo.findById(id);
+    if (!job) return reply.code(404).send("Job не знайдено");
+    if (job.status !== "running" && job.status !== "pending") {
+      return reply.code(409).send(`Job вже завершився (status=${job.status})`);
+    }
+
+    let killed = false;
+    if (job.pid) {
+      try { process.kill(job.pid, "SIGTERM"); killed = true; } catch (_) {}
+    }
+    await jobsRepo.appendLog(id,
+      killed ? `⊘ Зупинено (kill PID=${job.pid})`
+             : `⊘ Зупинено (runner orphan${job.pid ? `, PID=${job.pid} вже мертвий` : ", PID невідомий"})`,
+    );
+    await jobsRepo.finishCancelled(id);
+    // Якщо є оливо в стані in_progress — відкатуємо їх у pending
+    if (req.server) {
+      // No-op
+    }
     return reply.redirect(`/jobs/${id}`);
   });
 

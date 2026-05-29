@@ -1,6 +1,9 @@
 const fs = require("fs");
 const path = require("path");
 const { TruckMarketClient } = require("../../integrations/truckmarket/client");
+const { spawnTask } = require("../tasks/spawn-task");
+
+const UPLOAD_DIR = path.resolve(process.cwd(), "uploads");
 
 async function listCompanies(db) {
   const r = await db.query(`
@@ -196,6 +199,108 @@ async function companiesRoutes(fastify, { db, runner }) {
     reply.header("Content-Type", mime);
     reply.header("Cache-Control", "private, max-age=3600");
     return reply.send(fs.createReadStream(filePath));
+  });
+
+  // === Форма "Оновити ціни" ===
+  fastify.get("/companies/:id/update-prices", { preHandler: fastify.requireAuth }, async (req, reply) => {
+    const id = parseInt(req.params.id, 10);
+    const company = await findCompany(db, id);
+    if (!company) return reply.code(404).send("Не знайдено");
+    return reply.view("update-prices.ejs", {
+      title: `Оновити ціни — ${company.name_company}`,
+      user: req.user,
+      active: "companies",
+      company,
+    });
+  });
+
+  // === Обробка завантаженого Excel для оновлення цін ===
+  fastify.post("/companies/:id/update-prices", { preHandler: fastify.requireAuth }, async (req, reply) => {
+    const id = parseInt(req.params.id, 10);
+    const company = await findCompany(db, id);
+    if (!company) return reply.code(404).send("Не знайдено");
+
+    const parts = req.parts();
+    let xlsxPath = null;
+    fs.mkdirSync(UPLOAD_DIR, { recursive: true });
+    const batchTag = `prices_${id}_${Date.now()}`;
+
+    for await (const part of parts) {
+      if (part.type === "field") continue;
+      if (!part.file) continue;
+      if (part.fieldname === "xlsx") {
+        const safeName = `${batchTag}_${part.filename.replace(/[^a-zA-Z0-9._-]/g, "_")}`;
+        xlsxPath = path.join(UPLOAD_DIR, safeName);
+        await new Promise((res, rej) => {
+          const ws = fs.createWriteStream(xlsxPath);
+          part.file.pipe(ws);
+          ws.on("finish", res); ws.on("error", rej);
+        });
+      } else {
+        part.file.resume();
+      }
+    }
+    if (!xlsxPath) return reply.code(400).send("Потрібен файл xlsx");
+
+    const jobId = await runner.run({
+      kind: "update-prices",
+      params: { company_id: id, company: company.name_company, xlsx: path.basename(xlsxPath) },
+      userId: req.user.id,
+      fn: async (ctx) => {
+        ctx.log(`Оновлення цін для "${company.name_company}"`);
+        ctx.log(`Excel: ${path.basename(xlsxPath)}\n`);
+
+        // 1) Парсинг — оновить olivs + закриє старі oils_price + INSERT нові.
+        // company по UNIQUE(name_company) знайдеться → нічого зайвого не створиться.
+        ctx.log("=== 1/2 Парсинг прайсу (оновлення цін у БД) ===");
+        await spawnTask(ctx, "src/parser/index.js", [company.name_company, xlsxPath]);
+
+        // 2) Для опублікованих — оновлюємо ціну на TM.
+        ctx.log("\n=== 2/2 Оновлення цін на TruckMarket ===");
+        const r = await db.query(`
+          SELECT o.id, o.articul, o.truck_listing_id,
+                 (SELECT p.price FROM oils_price p
+                    WHERE p.oils_id = o.id AND p.valid_to IS NULL LIMIT 1) AS price
+            FROM olivs o
+           WHERE o.company_id = $1 AND o.truck_listing_id IS NOT NULL
+        ORDER BY o.id`, [id]);
+
+        ctx.log(`Опублікованих оливо: ${r.rowCount}`);
+
+        if (r.rowCount === 0) {
+          ctx.log("Нема що оновлювати на TM");
+          return;
+        }
+
+        const api = new TruckMarketClient();
+        let ok = 0, fail = 0, skip = 0;
+        for (const row of r.rows) {
+          if (row.price == null) {
+            ctx.log(`  ⊘ olivs.id=${row.id} (#${row.truck_listing_id}) — ціна в БД відсутня, скіп`);
+            skip++;
+            continue;
+          }
+          try {
+            const res = await api.updateListing(Number(row.truck_listing_id), {
+              price: row.price,
+              price_curr: 1,
+            });
+            if (res && res.success !== false) {
+              ctx.log(`  ✓ #${row.truck_listing_id} articul=${row.articul} → ${row.price} ₴`);
+              ok++;
+            } else {
+              ctx.log(`  ✗ #${row.truck_listing_id}: ${JSON.stringify(res)}`);
+              fail++;
+            }
+          } catch (e) {
+            ctx.log(`  ✗ #${row.truck_listing_id} articul=${row.articul}: ${e.message}`);
+            fail++;
+          }
+        }
+        ctx.log(`\nTM update: ok=${ok}, skip=${skip}, fail=${fail}`);
+      },
+    });
+    return reply.redirect(`/jobs/${jobId}`);
   });
 
   // === Видалити компанію разом з усіма оливами ===

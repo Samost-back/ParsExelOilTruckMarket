@@ -1,18 +1,22 @@
 const fp = require("fastify-plugin");
+const crypto = require("crypto");
 const secureSession = require("@fastify/secure-session");
 const bcrypt = require("bcrypt");
 
 // Реєструє session-cookie і додає 2 декоратора:
 //   request.user — { id, username } або null
-//   reply.redirectToLogin() — 302 → /login
 // Також додає hook 'requireAuth' для preHandler.
 
 async function authPlugin(fastify, opts) {
   if (!opts.sessionSecret || opts.sessionSecret.length < 32) {
-    throw new Error("SESSION_SECRET must be set (>=32 chars)");
+    throw new Error("SESSION_SECRET must be set (>=32 chars). Generate: openssl rand -base64 32");
   }
+  // sha256 дає 32 байти повної ентропії — на відміну від .slice + padEnd('0')
+  // що знижувало ентропію якщо секрет був коротшим за 32 chars.
+  const key = crypto.createHash("sha256").update(opts.sessionSecret).digest();
+
   await fastify.register(secureSession, {
-    key: Buffer.from(opts.sessionSecret.slice(0, 32).padEnd(32, "0").slice(0, 32)),
+    key,
     cookieName: "session",
     cookie: {
       path: "/",

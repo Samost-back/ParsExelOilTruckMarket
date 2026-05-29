@@ -25,13 +25,11 @@ module.exports = {
 
   COUNTRY_TEXT: {
     color: '#ffffff',
-    // DejaVu Sans гарантовано встановлений у Docker image (пакет fonts-dejavu-core)
-    // і містить кирилицю. У браузерній утиліті можна додати fallback на Inter.
     fontFamily: 'DejaVu Sans, Liberation Sans, Inter, system-ui, sans-serif',
     fontWeight: 700,
     heightRatio: 0.78,
-    offsetX: 10,
-    offsetY: 1, // тонке вирівнювання по вертикалі під кружечок-маркер на шаблоні
+    offsetX: 0, // прапор вимкнено → не зсуваємо текст вправо
+    offsetY: 1, // тонке вертикальне вирівнювання під кружечок-маркер
   },
 
   // Прапор у вигляді горизонтальних смуг, що малюється зліва від тексту країни.

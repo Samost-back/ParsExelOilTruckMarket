@@ -6,7 +6,7 @@ const path = require("path");
 const Fastify = require("fastify");
 const ejs = require("ejs");
 
-const { createDbClient } = require("../shared/infra/db");
+const { getPool, closePool } = require("../shared/infra/db");
 const { UsersRepo } = require("./repositories/users-repo");
 const { JobsRepo } = require("./repositories/jobs-repo");
 const { JobRunner } = require("./services/job-runner");
@@ -16,19 +16,34 @@ const authPlugin = require("./plugins/auth");
 async function buildServer() {
   const fastify = Fastify({ logger: { level: process.env.LOG_LEVEL || "info" } });
 
-  // 1. DB connection (shared для всього додатку)
-  const db = createDbClient();
-  await db.connect();
-  fastify.addHook("onClose", async () => db.end().catch(() => {}));
+  // 1. DB pool — share через все приложение, SSE не блокує інші запити.
+  const db = getPool();
+  fastify.addHook("onClose", async () => closePool());
 
   const usersRepo = new UsersRepo(db);
   const jobsRepo = new JobsRepo(db);
-  const runner = new JobRunner({ jobsRepo });
+  const runner = new JobRunner({
+    jobsRepo,
+    maxConcurrent: parseInt(process.env.MAX_CONCURRENT_JOBS || "3", 10),
+  });
+
+  // Reaper: підбираємо orphans після рестарту (їхні child-процеси точно мертві)
+  const reaped = await jobsRepo.reapOrphans();
+  if (reaped.length) {
+    console.log(`✓ Reaped ${reaped.length} orphan job(s): ${reaped.map(j => `#${j.id} ${j.kind}`).join(", ")}`);
+    await db.query(`
+      UPDATE olivs SET truck_status = 'pending', truck_error = NULL, truck_at = NULL
+       WHERE truck_status = 'in_progress'`);
+  }
 
   // 2. Plugins
   await fastify.register(require("@fastify/formbody"));
   await fastify.register(require("@fastify/multipart"), {
-    limits: { fileSize: 5 * 1024 * 1024 * 1024 }, // 5 GB
+    limits: {
+      // MAX_UPLOAD_BYTES з .env (дефолт 500 MB на файл).
+      // Папка з фото може мати багато файлів — це ліміт ПО ФАЙЛУ, не загальний.
+      fileSize: parseInt(process.env.MAX_UPLOAD_BYTES || String(500 * 1024 * 1024), 10),
+    },
   });
   await fastify.register(require("@fastify/view"), {
     engine: { ejs },
@@ -47,7 +62,38 @@ async function buildServer() {
     usersRepo,
   });
 
-  // 3. Routes
+  // Глобальний error handler: дає user-friendly 429 при перевищенні ліміту jobs.
+  fastify.setErrorHandler(async (err, req, reply) => {
+    if (/Перевищено ліміт одночасних задач/.test(err.message)) {
+      reply.code(429);
+      // Якщо це fetch — повертаємо текст, якщо HTML form — рендеримо просту сторінку
+      if ((req.headers.accept || "").includes("text/html")) {
+        return reply.view("error.ejs", {
+          title: "Забагато активних задач",
+          user: req.user || null,
+          active: null,
+          code: 429,
+          message: err.message,
+        });
+      }
+      return { error: err.message };
+    }
+    req.log.error(err);
+    reply.code(err.statusCode || 500);
+    return { error: err.message };
+  });
+
+  // 3. Health endpoint (без auth, для docker healthcheck)
+  fastify.get("/health", async () => {
+    try {
+      await db.query("SELECT 1");
+      return { status: "ok", jobs_active: runner.activeCount() };
+    } catch (e) {
+      return { status: "degraded", error: e.message };
+    }
+  });
+
+  // 4. Routes
   await fastify.register(require("./routes/auth.routes"));
   await fastify.register(require("./routes/dashboard.routes"), { db, jobsRepo });
   await fastify.register(require("./routes/import.routes"), { db, runner });

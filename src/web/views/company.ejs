@@ -7,10 +7,13 @@
       Олив: <%= counts.total %>
     </p>
   </div>
-  <form method="post" action="/companies/<%= company.id %>/delete"
-        onsubmit="return confirm('Видалити «<%= company.name_company %>»?\n\n• <%= counts.done %> оголошень буде знято з TruckMarket\n• <%= counts.total %> олив + усі фото будуть видалені з БД\n\nВідновити неможливо.');">
-    <button type="submit" class="btn-danger">⊘ Видалити компанію</button>
-  </form>
+  <div class="page-header-actions">
+    <a href="/companies/<%= company.id %>/update-prices" class="btn-primary">🔄 Оновити ціни</a>
+    <form method="post" action="/companies/<%= company.id %>/delete"
+          onsubmit="return confirm('Видалити «<%= company.name_company %>»?\n\n• <%= counts.done %> оголошень буде знято з TruckMarket\n• <%= counts.total %> олив + усі фото будуть видалені з БД\n\nВідновити неможливо.');">
+      <button type="submit" class="btn-danger">⊘ Видалити компанію</button>
+    </form>
+  </div>
 </div>
 
 <section class="status-tabs">

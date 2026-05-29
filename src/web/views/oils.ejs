@@ -1,3 +1,15 @@
+<%
+  // Helper — будує query-string без пустих значень
+  function qs(overrides) {
+    const p = new URLSearchParams();
+    const merged = { ...filters, ...overrides };
+    for (const [k, v] of Object.entries(merged)) {
+      if (v !== "" && v != null) p.set(k, v);
+    }
+    const s = p.toString();
+    return s ? "?" + s : "";
+  }
+%>
 <div class="page-header">
   <div>
     <h1>Усі оливи</h1>
@@ -6,23 +18,23 @@
 </div>
 
 <section class="status-tabs">
-  <a href="/oils?<%= new URLSearchParams({ ...filters, status: '' }).toString() %>"
+  <a href="/oils<%= qs({ status: '' }) %>"
      class="status-tab <%= !filters.status ? 'active' : '' %>">
     Всі <span class="count"><%= counts.total %></span>
   </a>
-  <a href="/oils?<%= new URLSearchParams({ ...filters, status: 'pending' }).toString() %>"
+  <a href="/oils<%= qs({ status: 'pending' }) %>"
      class="status-tab <%= filters.status === 'pending' ? 'active' : '' %>">
     <span class="dot dot-pending"></span> Очікують <span class="count"><%= counts.pending %></span>
   </a>
-  <a href="/oils?<%= new URLSearchParams({ ...filters, status: 'in_progress' }).toString() %>"
+  <a href="/oils<%= qs({ status: 'in_progress' }) %>"
      class="status-tab <%= filters.status === 'in_progress' ? 'active' : '' %>">
     <span class="dot dot-warning"></span> В роботі <span class="count"><%= counts.in_progress %></span>
   </a>
-  <a href="/oils?<%= new URLSearchParams({ ...filters, status: 'done' }).toString() %>"
+  <a href="/oils<%= qs({ status: 'done' }) %>"
      class="status-tab <%= filters.status === 'done' ? 'active' : '' %>">
     <span class="dot dot-success"></span> Опубліковано <span class="count"><%= counts.done %></span>
   </a>
-  <a href="/oils?<%= new URLSearchParams({ ...filters, status: 'failed' }).toString() %>"
+  <a href="/oils<%= qs({ status: 'failed' }) %>"
      class="status-tab <%= filters.status === 'failed' ? 'active' : '' %>">
     <span class="dot dot-danger"></span> Помилки <span class="count"><%= counts.failed %></span>
   </a>
@@ -140,11 +152,11 @@
     <div class="pagination">
       <% const totalPages = Math.ceil(total / perPage); %>
       <% if (page > 1) { %>
-        <a href="/oils?<%= new URLSearchParams({ ...filters, page: page - 1 }).toString() %>" class="btn-link">← попередня</a>
+        <a href="/oils<%= qs({ page: page - 1 }) %>" class="btn-link">← попередня</a>
       <% } %>
       <span class="text-muted">Сторінка <%= page %> / <%= totalPages %></span>
       <% if (page < totalPages) { %>
-        <a href="/oils?<%= new URLSearchParams({ ...filters, page: page + 1 }).toString() %>" class="btn-link">наступна →</a>
+        <a href="/oils<%= qs({ page: page + 1 }) %>" class="btn-link">наступна →</a>
       <% } %>
     </div>
   <% } %>

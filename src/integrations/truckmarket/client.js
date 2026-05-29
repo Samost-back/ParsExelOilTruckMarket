@@ -27,6 +27,17 @@ class TruckMarketClient {
     return this.http.send({ method: "DELETE", path: `/intapi/v1/listings/delete/${listingId}` });
   }
 
+  // Оновлення оголошення. data — об'єкт з полями що змінюються (price, descr, ...).
+  // Якщо TM віддасть 404 — endpoint неправильний (треба перевірити документацію).
+  updateListing(listingId, data) {
+    if (!listingId) throw new Error("updateListing: listingId required");
+    return this.http.send({
+      method: "POST",
+      path: `/intapi/v1/listings/update/${listingId}`,
+      json: { data },
+    });
+  }
+
   // Завантаження одного фото. TruckMarket робить ГОЛОВНИМ перше залите.
   async uploadListingImage(listingId, filePath) {
     if (!listingId) throw new Error("uploadListingImage: listingId required");

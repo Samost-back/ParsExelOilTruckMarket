@@ -3,14 +3,16 @@ services:
     image: postgres:16-alpine
     restart: unless-stopped
     environment:
-      POSTGRES_USER: ${PG_USER:-postgres}
-      POSTGRES_PASSWORD: ${PG_PASSWORD:-postgres}
-      POSTGRES_DB: ${PG_DB:-truck_oil_db}
+      POSTGRES_USER:     ${PG_USER:?PG_USER required in .env}
+      POSTGRES_PASSWORD: ${PG_PASSWORD:?PG_PASSWORD required in .env}
+      POSTGRES_DB:       ${PG_DB:?PG_DB required in .env}
     volumes:
       - pg_data:/var/lib/postgresql/data
       - ./database/migrations:/docker-entrypoint-initdb.d:ro
+    # Якщо потрібен прямий доступ з host (dev/admin), розкоментуйте ports.
+    # На prod НЕ публікуйте postgres — він і так доступний для app через docker network.
     ports:
-      - "${PG_PORT:-5432}:5432"
+      - "127.0.0.1:${PG_HOST_PORT:-5434}:5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
       interval: 5s
@@ -30,26 +32,36 @@ services:
       # БД
       PG_HOST: db
       PG_PORT: 5432
-      PG_DB: ${PG_DB:-truck_oil_db}
-      PG_USER: ${PG_USER:-postgres}
-      PG_PASSWORD: ${PG_PASSWORD:-postgres}
+      PG_DB:       ${PG_DB:?PG_DB required}
+      PG_USER:     ${PG_USER:?PG_USER required}
+      PG_PASSWORD: ${PG_PASSWORD:?PG_PASSWORD required}
+      PG_POOL_MAX: ${PG_POOL_MAX:-10}
       # Сесії
-      SESSION_SECRET: ${SESSION_SECRET}
+      SESSION_SECRET: ${SESSION_SECRET:?SESSION_SECRET required (>=32 chars)}
       # TruckMarket
-      TRUCK_BASE_URL: ${TRUCK_BASE_URL}
-      KEY_ID: ${KEY_ID}
-      SECRET_KEY: ${SECRET_KEY}
-      USER_ID: ${USER_ID}
-      COMPANY_ID: ${COMPANY_ID}
-      GEO_CITY_ID_DEFAULT: ${GEO_CITY_ID_DEFAULT}
-      # OpenAI
+      TRUCK_BASE_URL: ${TRUCK_BASE_URL:?required}
+      KEY_ID:         ${KEY_ID:?required}
+      SECRET_KEY:     ${SECRET_KEY:?required}
+      USER_ID:        ${USER_ID:?required}
+      COMPANY_ID:     ${COMPANY_ID:?required}
+      GEO_CITY_ID_DEFAULT: ${GEO_CITY_ID_DEFAULT:?required}
+      # OpenAI (опціонально)
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
-      OPENAI_MODEL: ${OPENAI_MODEL:-gpt-4o-mini}
+      OPENAI_MODEL:   ${OPENAI_MODEL:-gpt-4o-mini}
+      # Ліміти/обмеження
+      MAX_UPLOAD_BYTES: ${MAX_UPLOAD_BYTES:-524288000}   # 500 MB
+      MAX_CONCURRENT_JOBS: ${MAX_CONCURRENT_JOBS:-3}
     volumes:
       - photos_storage:/app/photos_storage
       - uploads:/app/uploads
     ports:
       - "${PORT:-3000}:3000"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3000/health || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
 
 volumes:
   pg_data:
