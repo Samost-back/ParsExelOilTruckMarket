@@ -1,4 +1,15 @@
-<h1>Job #<%= job.id %> — <%= job.kind %></h1>
+<div class="page-header">
+  <div>
+    <a href="/jobs" class="btn-link breadcrumb-back">← Усі задачі</a>
+    <h1>Job #<%= job.id %> — <%= job.kind %></h1>
+  </div>
+  <% if (canCancel) { %>
+    <form method="post" action="/jobs/<%= job.id %>/cancel" id="cancelForm"
+          onsubmit="return confirm('Зупинити цю задачу?');">
+      <button type="submit" class="btn-danger">⊘ Зупинити</button>
+    </form>
+  <% } %>
+</div>
 
 <section class="card">
   <div class="job-meta">
@@ -21,12 +32,11 @@
   <pre id="job-log" class="job-log"><%= job.log || "" %></pre>
 </section>
 
-<a href="/" class="btn-link">← Дашборд</a>
-
 <% if (job.status === "running" || job.status === "pending") { %>
 <script>
   const status = document.getElementById("job-status");
   const logEl = document.getElementById("job-log");
+  const cancelForm = document.getElementById("cancelForm");
   const evt = new EventSource("/jobs/<%= job.id %>/stream");
   evt.addEventListener("line", (e) => {
     logEl.textContent += e.data + "\n";
@@ -36,6 +46,7 @@
     const data = JSON.parse(e.data);
     status.textContent = data.status;
     status.className = "badge badge-" + data.status;
+    if (cancelForm) cancelForm.style.display = "none";
     evt.close();
   });
 </script>

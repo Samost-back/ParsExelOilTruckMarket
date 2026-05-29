@@ -1,0 +1,151 @@
+<div class="page-header">
+  <div>
+    <h1>Усі оливи</h1>
+    <p class="subtitle">Знайдено <%= total %></p>
+  </div>
+</div>
+
+<section class="status-tabs">
+  <a href="/oils?<%= new URLSearchParams({ ...filters, status: '' }).toString() %>"
+     class="status-tab <%= !filters.status ? 'active' : '' %>">
+    Всі <span class="count"><%= counts.total %></span>
+  </a>
+  <a href="/oils?<%= new URLSearchParams({ ...filters, status: 'pending' }).toString() %>"
+     class="status-tab <%= filters.status === 'pending' ? 'active' : '' %>">
+    <span class="dot dot-pending"></span> Очікують <span class="count"><%= counts.pending %></span>
+  </a>
+  <a href="/oils?<%= new URLSearchParams({ ...filters, status: 'in_progress' }).toString() %>"
+     class="status-tab <%= filters.status === 'in_progress' ? 'active' : '' %>">
+    <span class="dot dot-warning"></span> В роботі <span class="count"><%= counts.in_progress %></span>
+  </a>
+  <a href="/oils?<%= new URLSearchParams({ ...filters, status: 'done' }).toString() %>"
+     class="status-tab <%= filters.status === 'done' ? 'active' : '' %>">
+    <span class="dot dot-success"></span> Опубліковано <span class="count"><%= counts.done %></span>
+  </a>
+  <a href="/oils?<%= new URLSearchParams({ ...filters, status: 'failed' }).toString() %>"
+     class="status-tab <%= filters.status === 'failed' ? 'active' : '' %>">
+    <span class="dot dot-danger"></span> Помилки <span class="count"><%= counts.failed %></span>
+  </a>
+</section>
+
+<section class="card">
+  <form method="get" action="/oils" class="form">
+    <input type="hidden" name="status" value="<%= filters.status %>" />
+    <div class="form-row">
+      <label class="field">
+        <span class="field-label">Пошук</span>
+        <input name="search" value="<%= filters.search %>" placeholder="Назва або артикул…" />
+      </label>
+      <label class="field">
+        <span class="field-label">Компанія</span>
+        <select name="company">
+          <option value="">— всі —</option>
+          <% facets.companies.forEach(c => { %>
+            <option value="<%= c.id %>" <%= String(filters.company) === String(c.id) ? "selected" : "" %>>
+              <%= c.name_company %>
+            </option>
+          <% }) %>
+        </select>
+      </label>
+      <label class="field">
+        <span class="field-label">Тип</span>
+        <select name="type">
+          <option value="">— всі —</option>
+          <% facets.types.forEach(t => { %>
+            <option value="<%= t %>" <%= filters.type === t ? "selected" : "" %>><%= t %></option>
+          <% }) %>
+        </select>
+      </label>
+    </div>
+    <div class="form-actions">
+      <button type="submit" class="btn-primary">Фільтрувати</button>
+      <a href="/oils" class="btn-link">Очистити</a>
+    </div>
+  </form>
+</section>
+
+<section class="card">
+  <table class="jobs-table">
+    <thead>
+      <tr>
+        <th></th>
+        <th>Тип</th>
+        <th>Компанія</th>
+        <th>Назва</th>
+        <th>Артикул</th>
+        <th>Об'єм</th>
+        <th>Ціна</th>
+        <th>Фото</th>
+        <th>TM</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      <% oils.forEach(o => { %>
+        <tr>
+          <td>
+            <% if (o.img_total > 0) { %>
+              <a href="/oils/<%= o.id %>/images" class="oil-thumb-link">
+                <img src="/oils/<%= o.id %>/image/first" loading="lazy" alt="" class="oil-thumb-img" />
+              </a>
+            <% } else { %>
+              <div class="oil-thumb-empty">—</div>
+            <% } %>
+          </td>
+          <td><span class="kind-pill"><%= o.name_type_oil %></span></td>
+          <td><%= o.company_name %></td>
+          <td><a href="/oils/<%= o.id %>/images" class="oil-name"><%= o.name %></a></td>
+          <td><code><%= o.articul %></code></td>
+          <td><%= o.packaging_volume %> л</td>
+          <td><%= o.price != null ? (o.price + " ₴") : "—" %></td>
+          <td>
+            <% if (o.img_total > 0) { %>
+              <span class="kind-pill"><%= o.img_done %>/<%= o.img_total %></span>
+            <% } else { %>
+              <span class="text-muted">—</span>
+            <% } %>
+          </td>
+          <td>
+            <% if (o.truck_status === 'done') { %>
+              <span class="badge badge-done">#<%= o.truck_listing_id %></span>
+            <% } else if (o.truck_status === 'in_progress') { %>
+              <span class="badge badge-in_progress">в роботі</span>
+            <% } else if (o.truck_status === 'failed') { %>
+              <span class="badge badge-failed" title="<%= o.truck_error || '' %>">помилка</span>
+            <% } else { %>
+              <span class="badge badge-pending">очікує</span>
+            <% } %>
+          </td>
+          <td class="actions-cell">
+            <% if (o.truck_status === 'done') { %>
+              <form method="post" action="/oils/<%= o.id %>/unpublish" style="display:inline"
+                    onsubmit="return confirm('Видалити #<%= o.truck_listing_id %> з TruckMarket?');">
+                <button type="submit" class="btn-link" style="color:var(--danger)">⊘ зняти з TM</button>
+              </form>
+            <% } else if (o.truck_status !== 'in_progress') { %>
+              <form method="post" action="/oils/<%= o.id %>/publish" style="display:inline">
+                <button type="submit" class="btn-link" style="color:var(--success)">↑ опублікувати</button>
+              </form>
+            <% } %>
+          </td>
+        </tr>
+      <% }) %>
+      <% if (oils.length === 0) { %>
+        <tr><td colspan="10" class="muted">Нічого не знайдено</td></tr>
+      <% } %>
+    </tbody>
+  </table>
+
+  <% if (total > perPage) { %>
+    <div class="pagination">
+      <% const totalPages = Math.ceil(total / perPage); %>
+      <% if (page > 1) { %>
+        <a href="/oils?<%= new URLSearchParams({ ...filters, page: page - 1 }).toString() %>" class="btn-link">← попередня</a>
+      <% } %>
+      <span class="text-muted">Сторінка <%= page %> / <%= totalPages %></span>
+      <% if (page < totalPages) { %>
+        <a href="/oils?<%= new URLSearchParams({ ...filters, page: page + 1 }).toString() %>" class="btn-link">наступна →</a>
+      <% } %>
+    </div>
+  <% } %>
+</section>

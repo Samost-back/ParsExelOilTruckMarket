@@ -1,6 +1,10 @@
 // SRP: всі SQL-запити навколо olivs/oils_images зосереджені тут.
 // Сервіси/оркестратор не пишуть SQL напряму.
 
+// Беремо лише ті, що:
+//   - ще не опубліковані (truck_listing_id IS NULL)
+//   - статус НЕ 'unpublished' (картку зняли вручну — не повертати автоматично)
+//   - статус НЕ 'in_progress' (вже в роботі іншого прогону)
 const SELECT_PENDING = `
   SELECT o.id, o.name_type_oil, o.name, o.type_oil, o.viscosity_sae,
          o.low_level_saps, o.packaging_volume, o.articul, o.acea, o.api,
@@ -13,6 +17,7 @@ const SELECT_PENDING = `
     FROM olivs o
     JOIN company_olivs c ON c.id = o.company_id
    WHERE o.truck_listing_id IS NULL
+     AND COALESCE(o.truck_status, 'pending') NOT IN ('unpublished', 'in_progress')
      AND o.name_type_oil = ANY($2)
    ORDER BY o.name_type_oil, o.id
    LIMIT $1
@@ -49,15 +54,47 @@ class OilsRepo {
 
   async setListingId(oilsId, listingId) {
     await this.db.query(
-      `UPDATE olivs SET truck_listing_id = $1 WHERE id = $2`,
+      `UPDATE olivs
+          SET truck_listing_id = $1,
+              truck_status = 'done',
+              truck_error = NULL,
+              truck_at = NOW()
+        WHERE id = $2`,
       [listingId, oilsId],
     );
   }
 
   async clearListingId(oilsId) {
     await this.db.query(
-      `UPDATE olivs SET truck_listing_id = NULL WHERE id = $1`,
+      `UPDATE olivs
+          SET truck_listing_id = NULL,
+              truck_status = NULL,
+              truck_error = NULL,
+              truck_at = NULL
+        WHERE id = $1`,
       [oilsId],
+    );
+  }
+
+  async markTruckInProgress(oilsId) {
+    await this.db.query(
+      `UPDATE olivs
+          SET truck_status = 'in_progress',
+              truck_error = NULL,
+              truck_at = NOW()
+        WHERE id = $1`,
+      [oilsId],
+    );
+  }
+
+  async markTruckFailed(oilsId, error) {
+    await this.db.query(
+      `UPDATE olivs
+          SET truck_status = 'failed',
+              truck_error = $1,
+              truck_at = NOW()
+        WHERE id = $2`,
+      [error, oilsId],
     );
   }
 

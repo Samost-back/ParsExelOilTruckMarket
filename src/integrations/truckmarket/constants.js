@@ -61,8 +61,9 @@ const TRUCKMARKET_CATEGORY_FIELDS = {
   // УВАГА: type_oil у БД для гідравлічних завжди NULL → поле "Тип оливи"
   // не передається. f1 на TruckMarket — це Клас в'язкості ISO VG
   // (підтверджено HTML d[1] для 4265: ISO 46=1, ISO 68=2, ISO 32=3).
+  // Бренд у 4265 — f5 (підтверджено HTML d[5] для 4265).
   4265: {
-    "Бренд": "f7",
+    "Бренд": "f5",
     "Клас в'язкості ISO VG": "f1",
     "Артикул": "f21",
     "Допуски виробників": "f22",
@@ -181,20 +182,31 @@ const SAE_OPTIONS_MOTOR = {
   "20W-50": 13,
 };
 
-// f6 — Об'єм упаковки, л. Бере значення з olivs.packaging_volume (число).
-// УВАГА: TruckMarket має ДИСКРЕТНИЙ список об'ємів. Об'єми з БД, яких немає
-// в цій мапі (0.4, 0.5, 0.9, 1.5, 15, 25, 50, 180 л) треба буде або скіпати,
-// або округлювати при формуванні payload (стратегія — в integration.js).
-const PACKAGING_VOLUME_OPTIONS_MOTOR = {
-  1: 1,
-  4: 7,
-  5: 2,
-  6: 3,
-  20: 4,
-  60: 5,
-  208: 6,
-  1000: 8,
+// === СПІЛЬНИЙ СПИСОК ОБ'ЄМІВ УПАКОВКИ для всіх трьох категорій ===
+// f-код: моторні=f6, трансмісійні/гідравлічні=f4.
+// ID підтверджено HTML d[4] — оновлений спільний словник 0.1…1000 л (18 значень).
+const PACKAGING_VOLUME_OPTIONS = {
+  0.1:  1,
+  0.25: 2,
+  0.5:  3,
+  1:    4,
+  1.5:  5,
+  2:    6,
+  3:    7,
+  4:    8,
+  5:    9,
+  7:    10,
+  8:    11,
+  10:   12,
+  20:   13,
+  25:   14,
+  60:   15,
+  205:  16,
+  208:  17,
+  1000: 18,
 };
+// Backwards-compat alias (для старого моторного коду, що ссилався на _MOTOR).
+const PACKAGING_VOLUME_OPTIONS_MOTOR = PACKAGING_VOLUME_OPTIONS;
 
 // === ТРАНСМІСІЙНІ ОЛИВИ (cat_id 4264) ===
 // f1 — Клас в'язкості ISO VG. Парсер зберігає формат "ISO VG 46".
@@ -213,16 +225,8 @@ const TYPE_OIL_OPTIONS_TRANSMISSION = {
   "мінеральне": 2, // Мінеральна
 };
 
-// f4 — Об'єм упаковки, л. Бере значення з olivs.packaging_volume (число).
-// id підтверджені з HTML фільтра TruckMarket (d[4]) для категорії 4264.
-// УВАГА: 5 л у TruckMarket для трансмісійних не передбачено.
-const PACKAGING_VOLUME_OPTIONS_TRANSMISSION = {
-  1: 1,
-  20: 2,
-  208: 3,
-  60: 4,
-  1000: 5,
-};
+// Об'єм упаковки трансмісійних = спільна шкала (PACKAGING_VOLUME_OPTIONS).
+const PACKAGING_VOLUME_OPTIONS_TRANSMISSION = PACKAGING_VOLUME_OPTIONS;
 
 // f6 — В'язкість SAE для трансмісійних. Підтверджено по HTML фільтра 4264:
 // шкала збігається з моторними (id 1..13 → 0W-16..20W-50). Значення з нашої
@@ -238,14 +242,8 @@ const TYPE_OIL_OPTIONS_HYDRAULIC = {
   "синтетичне": 3,      // Синтетична
 };
 
-// f4 — Об'єм упаковки, л. ID підтверджені з HTML d[4] категорії 4265.
-// УВАГА: 1 л і 1000 л у TruckMarket для гідравлічних НЕ передбачені.
-const PACKAGING_VOLUME_OPTIONS_HYDRAULIC = {
-  5: 2,
-  20: 3,
-  60: 4,
-  208: 1,
-};
+// Об'єм упаковки гідравлічних = спільна шкала (PACKAGING_VOLUME_OPTIONS).
+const PACKAGING_VOLUME_OPTIONS_HYDRAULIC = PACKAGING_VOLUME_OPTIONS;
 
 // Спільний список брендів TruckMarket для всіх категорій з полем "Бренд".
 // ID підтверджено HTML d[5] моторної (4263); такі ж id використовуємо для
@@ -296,7 +294,7 @@ const TRUCKMARKET_FIELD_OPTIONS = {
   4265: {
     f1: ISO_VG_OPTIONS_TRANSMISSION, // ID збігаються з 4264 (ISO 46=1, 68=2, 32=3)
     f4: PACKAGING_VOLUME_OPTIONS_HYDRAULIC,
-    f7: BRAND_OPTIONS,
+    f5: BRAND_OPTIONS, // d[5] = бренд для 4265
   },
 };
 

@@ -1,0 +1,235 @@
+<div class="page-header">
+  <div>
+    <h1>Імпорт даних</h1>
+    <p class="subtitle">Завантаження прайсу і фото для однієї компанії</p>
+  </div>
+</div>
+
+<section class="card">
+  <form method="post" action="/import" enctype="multipart/form-data" class="form">
+    <div class="form-row">
+      <label class="field">
+        <span class="field-label">Назва компанії <span class="req">*</span></span>
+        <input name="company" required placeholder="EUROLUB" autocomplete="off" />
+        <span class="field-hint">Якщо такої компанії немає — буде створена</span>
+      </label>
+
+      <label class="field">
+        <span class="field-label">Країна виробника</span>
+        <input name="country" placeholder="Німеччина" autocomplete="off" />
+        <span class="field-hint">Назва країни накладається на оброблене фото</span>
+      </label>
+    </div>
+
+    <label class="field">
+      <span class="field-label">Excel прайс <span class="req">*</span></span>
+      <div class="file-drop file-drop--file" data-target="xlsx">
+        <input type="file" name="xlsx" id="xlsxInput" accept=".xlsx,.xls,.xlsm,.csv,.ods" required />
+        <div class="file-drop-text" data-default>
+          <strong>Натисніть або перетягніть файл сюди</strong>
+          <span class="field-hint">Підтримуються .xlsx, .xls, .xlsm, .csv, .ods. Колонки: Найменування, Артикул, Упаковка, Ціна</span>
+        </div>
+        <div class="file-drop-selected" data-selected hidden>
+          <div class="file-pill"><span class="file-icon">📄</span> <span data-name></span></div>
+          <button type="button" class="btn-clear" data-clear>Очистити</button>
+        </div>
+      </div>
+    </label>
+
+    <label class="field">
+      <span class="field-label">Папка з фото</span>
+      <div class="file-drop" data-target="photos">
+        <input type="file" name="photos" id="photosInput" webkitdirectory directory multiple />
+        <div class="file-drop-text" data-default>
+          <strong>Виберіть папку з фото</strong>
+          <span class="field-hint">Опціонально. Підкаталоги обробляються рекурсивно. Ім'я файлу = articul</span>
+        </div>
+        <div class="file-drop-selected" data-selected hidden>
+          <div class="file-pill"><span class="file-icon">📁</span> <span data-name></span></div>
+          <div class="file-summary" data-summary></div>
+          <button type="button" class="btn-clear" data-clear>Очистити</button>
+        </div>
+      </div>
+    </label>
+
+    <div class="form-actions">
+      <button type="submit" class="btn-primary" id="submitBtn">Завантажити і обробити</button>
+    </div>
+
+    <div id="uploadProgress" class="upload-progress" hidden>
+      <div class="upload-progress-row">
+        <span class="upload-progress-label" id="uploadLabel">Завантаження…</span>
+        <span class="upload-progress-pct" id="uploadPct">0%</span>
+      </div>
+      <div class="upload-progress-bar"><div id="uploadBar" class="upload-progress-fill"></div></div>
+      <div class="upload-progress-row">
+        <span class="upload-progress-detail" id="uploadDetail">—</span>
+      </div>
+    </div>
+  </form>
+</section>
+
+<script>
+  (function () {
+    function fmtBytes(n) {
+      if (n < 1024) return n + " B";
+      if (n < 1024 * 1024) return (n / 1024).toFixed(1) + " KB";
+      if (n < 1024 * 1024 * 1024) return (n / 1024 / 1024).toFixed(1) + " MB";
+      return (n / 1024 / 1024 / 1024).toFixed(2) + " GB";
+    }
+
+    // --- File drop indicators ---
+    document.querySelectorAll(".file-drop").forEach(function (drop) {
+      var input    = drop.querySelector("input[type=file]");
+      var dflt     = drop.querySelector("[data-default]");
+      var sel      = drop.querySelector("[data-selected]");
+      var nameEl   = sel.querySelector("[data-name]");
+      var sumEl    = sel.querySelector("[data-summary]");
+      var clearBtn = sel.querySelector("[data-clear]");
+
+      function render() {
+        var files = input.files;
+        if (!files || files.length === 0) {
+          dflt.hidden = false;
+          sel.hidden = true;
+          drop.classList.remove("has-file");
+          return;
+        }
+        dflt.hidden = true;
+        sel.hidden = false;
+        drop.classList.add("has-file");
+
+        if (files.length === 1) {
+          var f = files[0];
+          var rel = f.webkitRelativePath || "";
+          nameEl.textContent = rel || f.name;
+          if (sumEl) sumEl.textContent = fmtBytes(f.size);
+        } else {
+          var first = files[0];
+          var rel = first.webkitRelativePath || "";
+          var root = rel.split("/")[0] || "(папка)";
+          nameEl.textContent = root + " / ";
+          if (sumEl) {
+            var total = 0;
+            for (var i = 0; i < files.length; i++) total += files[i].size;
+            sumEl.textContent = files.length + " файлів · " + fmtBytes(total);
+          }
+        }
+      }
+
+      input.addEventListener("change", render);
+      if (clearBtn) clearBtn.addEventListener("click", function (e) {
+        e.stopPropagation();
+        e.preventDefault();
+        input.value = "";
+        render();
+      });
+      render();
+    });
+
+    // --- Upload progress (XHR замість form submit) ---
+    var form = document.querySelector("form[action='/import']");
+    if (!form) return;
+    var progressBox    = document.getElementById("uploadProgress");
+    var progressBar    = document.getElementById("uploadBar");
+    var progressPct    = document.getElementById("uploadPct");
+    var progressLabel  = document.getElementById("uploadLabel");
+    var progressDetail = document.getElementById("uploadDetail");
+    var submitBtn      = document.getElementById("submitBtn");
+
+    form.addEventListener("submit", function (e) {
+      e.preventDefault();
+      var fd = new FormData(form);
+      var xhr = new XMLHttpRequest();
+      xhr.open("POST", form.action, true);
+
+      progressBox.hidden = false;
+      progressLabel.textContent = "Завантаження файлів…";
+      submitBtn.disabled = true;
+      submitBtn.textContent = "Завантаження…";
+
+      var startTs = Date.now();
+      xhr.upload.onprogress = function (evt) {
+        if (!evt.lengthComputable) return;
+        var pct = Math.round((evt.loaded / evt.total) * 100);
+        progressBar.style.width = pct + "%";
+        progressPct.textContent = pct + "%";
+        var elapsed = (Date.now() - startTs) / 1000;
+        var speed = elapsed > 0 ? evt.loaded / elapsed : 0;
+        progressDetail.textContent =
+          fmtBytes(evt.loaded) + " / " + fmtBytes(evt.total) +
+          " · " + fmtBytes(speed) + "/s";
+      };
+
+      xhr.upload.onload = function () {
+        progressLabel.textContent = "Файли отримано, очікую відповідь сервера…";
+        progressDetail.textContent = "Сервер створює задачу…";
+      };
+
+      xhr.onload = function () {
+        if (xhr.status >= 200 && xhr.status < 400) {
+          var loc = xhr.getResponseHeader("Location") || xhr.responseURL;
+          if (loc) window.location.href = loc;
+          else window.location.reload();
+        } else {
+          progressLabel.textContent = "Помилка " + xhr.status;
+          progressDetail.textContent = xhr.responseText || "—";
+          submitBtn.disabled = false;
+          submitBtn.textContent = "Завантажити і обробити";
+        }
+      };
+
+      xhr.onerror = function () {
+        progressLabel.textContent = "Помилка з'єднання";
+        submitBtn.disabled = false;
+        submitBtn.textContent = "Завантажити і обробити";
+      };
+
+      xhr.send(fd);
+    });
+  })();
+</script>
+
+<% if (companies && companies.length) { %>
+<section class="card">
+  <h2>Останні завантаження по компаніях</h2>
+  <table class="jobs-table">
+    <thead>
+      <tr>
+        <th>Компанія</th>
+        <th>Країна</th>
+        <th>Excel</th>
+        <th>Фото</th>
+      </tr>
+    </thead>
+    <tbody>
+      <% companies.forEach(c => { %>
+        <tr>
+          <td><strong><%= c.name_company %></strong></td>
+          <td><%= c.country || "—" %></td>
+          <td>
+            <% if (c.xlsx_path) { %>
+              <code><%= c.xlsx_path %></code>
+              <div class="text-muted" style="font-size:0.78rem">
+                <%= c.xlsx_at && new Date(c.xlsx_at).toLocaleString("uk-UA") %>
+              </div>
+            <% } else { %>
+              <span class="text-muted">—</span>
+            <% } %>
+          </td>
+          <td>
+            <% if (c.photos_dir) { %>
+              <code><%= c.photos_dir %></code>
+              <div class="text-muted" style="font-size:0.78rem">
+                <%= c.photos_at && new Date(c.photos_at).toLocaleString("uk-UA") %>
+              </div>
+            <% } else { %>
+              <span class="text-muted">—</span>
+            <% } %>
+          </td>
+        </tr>
+      <% }) %>
+    </tbody>
+  </table>
+</section>
+<% } %>

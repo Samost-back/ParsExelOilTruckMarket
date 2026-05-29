@@ -1,0 +1,48 @@
+<div class="page-header">
+  <div>
+    <h1>Інтеграції</h1>
+    <p class="subtitle">Публікація оголошень на маркетплейс</p>
+  </div>
+</div>
+
+<section class="card integration-card">
+  <div class="integration-head">
+    <div>
+      <h2>TruckMarket</h2>
+      <p class="text-muted">Моторні, трансмісійні і гідравлічні оливи з БД будуть опубліковані як оголошення з обробленими фото та згенерованим SEO-описом.</p>
+    </div>
+    <div class="integration-status">
+      <% if (activeJob) { %>
+        <span class="badge badge-running">Виконується #<%= activeJob.id %></span>
+      <% } else { %>
+        <span class="badge badge-done">Готова</span>
+      <% } %>
+    </div>
+  </div>
+
+  <ul class="integration-steps">
+    <li><strong>Опис</strong> — генерується через OpenAI для кожного товару</li>
+    <li><strong>Фото</strong> — завантажуються вже оброблені (шаблон + назва країни)</li>
+    <li><strong>Оголошення</strong> — створюється на TruckMarket з усіма полями</li>
+  </ul>
+
+  <% if (activeJob) { %>
+    <div class="flash flash-info">
+      Зараз виконується задача <a href="/jobs/<%= activeJob.id %>">#<%= activeJob.id %></a>.
+      Запустити нову не можна — спочатку зупиніть або дочекайтеся завершення.
+    </div>
+    <div class="form-actions">
+      <a href="/jobs/<%= activeJob.id %>" class="btn-primary">Відкрити лог</a>
+      <form method="post" action="/jobs/<%= activeJob.id %>/cancel" style="display:inline"
+            onsubmit="return confirm('Зупинити публікацію?');">
+        <button type="submit" class="btn-danger">⊘ Зупинити</button>
+      </form>
+    </div>
+  <% } else { %>
+    <form method="post" action="/integrations/truckmarket/run" class="form">
+      <div class="form-actions">
+        <button type="submit" class="btn-primary">Опублікувати на TruckMarket</button>
+      </div>
+    </form>
+  <% } %>
+</section>

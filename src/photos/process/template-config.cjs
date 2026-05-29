@@ -25,10 +25,13 @@ module.exports = {
 
   COUNTRY_TEXT: {
     color: '#ffffff',
-    fontFamily: 'Inter, system-ui, sans-serif',
+    // DejaVu Sans гарантовано встановлений у Docker image (пакет fonts-dejavu-core)
+    // і містить кирилицю. У браузерній утиліті можна додати fallback на Inter.
+    fontFamily: 'DejaVu Sans, Liberation Sans, Inter, system-ui, sans-serif',
     fontWeight: 700,
     heightRatio: 0.78,
     offsetX: 10,
+    offsetY: 1, // тонке вирівнювання по вертикалі під кружечок-маркер на шаблоні
   },
 
   // Прапор у вигляді горизонтальних смуг, що малюється зліва від тексту країни.
@@ -36,7 +39,7 @@ module.exports = {
   // Розмір прапора відносно country-поля: heightRatio (відсоток від country.height),
   // aspectRatio (співвідношення сторін flag.w/flag.h), gap (px між прапором і текстом).
   FLAG: {
-    enabled: true,
+    enabled: false, // прапори вимкнено — пишемо лише назву країни
     heightRatio: 0.65,
     aspectRatio: 1.5,
     gap: 5,

@@ -20,9 +20,13 @@ FROM node:20-bookworm-slim
 
 WORKDIR /app
 
-# Тонке середовище: тільки потрібні lib для sharp/bcrypt.
+# Тонке середовище: тільки потрібні lib для sharp/bcrypt + шрифти з кирилицею
+# (потрібні librsvg для рендерингу SVG-тексту через sharp.composite).
 RUN apt-get update && apt-get install -y --no-install-recommends \
       ca-certificates tini \
+      fonts-dejavu-core fonts-liberation \
+      fontconfig \
+    && fc-cache -f \
     && rm -rf /var/lib/apt/lists/* \
     && groupadd -r app && useradd -r -g app -d /app -s /sbin/nologin app
 

@@ -1,4 +1,9 @@
-<h1>Pipeline Dashboard</h1>
+<div class="page-header">
+  <div>
+    <h1>Дашборд</h1>
+    <p class="subtitle">Огляд стану піпелайну</p>
+  </div>
+</div>
 
 <section class="cards">
   <div class="card stat">
@@ -10,7 +15,7 @@
     <div class="stat-value"><%= stats.photos %></div>
   </div>
   <div class="card stat">
-    <div class="stat-label">Оброблено (processed)</div>
+    <div class="stat-label">Оброблено</div>
     <div class="stat-value"><%= stats.processed %></div>
   </div>
   <div class="card stat">
@@ -20,56 +25,10 @@
 </section>
 
 <section class="card">
-  <h2>1. Парсинг прайсу + імпорт фото</h2>
-  <form method="post" action="/upload" enctype="multipart/form-data">
-    <label>
-      <span>Назва компанії</span>
-      <input name="company" required placeholder="EUROLUB" />
-    </label>
-    <label>
-      <span>Країна (для прапора)</span>
-      <input name="country" placeholder="Німеччина" />
-    </label>
-    <label>
-      <span>Excel прайс (.xlsx)</span>
-      <input type="file" name="xlsx" accept=".xlsx" required />
-    </label>
-    <label>
-      <span>Архів фото (.zip) — опціонально</span>
-      <input type="file" name="photos" accept=".zip" />
-    </label>
-    <button type="submit" class="btn-primary">Завантажити і обробити</button>
-  </form>
-</section>
-
-<section class="card">
-  <h2>2. Обробити фото (sharp + прапор)</h2>
-  <form method="post" action="/photos/process">
-    <label>
-      <span>Limit (порожньо = всі pending)</span>
-      <input name="limit" type="number" min="1" />
-    </label>
-    <button type="submit" class="btn-primary">Обробити</button>
-  </form>
-</section>
-
-<section class="card">
-  <h2>3. Інтеграція TruckMarket</h2>
-  <form method="post" action="/integrations/truckmarket/run">
-    <label>
-      <span>Limit (порожньо = 10)</span>
-      <input name="limit" type="number" min="1" />
-    </label>
-    <label class="checkbox">
-      <input type="checkbox" name="noAi" />
-      <span>Без OpenAI-описів</span>
-    </label>
-    <button type="submit" class="btn-primary">Запустити</button>
-  </form>
-</section>
-
-<section class="card">
-  <h2>Останні задачі</h2>
+  <div class="card-header">
+    <h2>Останні задачі</h2>
+    <a href="/jobs" class="btn-link">Усі →</a>
+  </div>
   <table class="jobs-table">
     <thead>
       <tr><th>ID</th><th>Тип</th><th>Статус</th><th>Створено</th><th></th></tr>
@@ -77,15 +36,15 @@
     <tbody>
       <% jobs.forEach(j => { %>
         <tr>
-          <td>#<%= j.id %></td>
-          <td><%= j.kind %></td>
+          <td><span class="job-id">#<%= j.id %></span></td>
+          <td><span class="kind-pill"><%= j.kind %></span></td>
           <td><span class="badge badge-<%= j.status %>"><%= j.status %></span></td>
-          <td><%= j.created_at && new Date(j.created_at).toLocaleString("uk-UA") %></td>
+          <td class="text-muted"><%= j.created_at && new Date(j.created_at).toLocaleString("uk-UA") %></td>
           <td><a href="/jobs/<%= j.id %>">логи →</a></td>
         </tr>
       <% }) %>
       <% if (jobs.length === 0) { %>
-        <tr><td colspan="5" class="muted">Поки немає</td></tr>
+        <tr><td colspan="5" class="muted">Поки немає задач</td></tr>
       <% } %>
     </tbody>
   </table>

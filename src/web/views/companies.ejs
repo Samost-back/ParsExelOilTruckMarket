@@ -1,0 +1,49 @@
+<div class="page-header">
+  <div>
+    <h1>Компанії</h1>
+    <p class="subtitle">Список усіх компаній з даними імпорту</p>
+  </div>
+  <a href="/import" class="btn-primary">+ Імпортувати</a>
+</div>
+
+<section class="card">
+  <table class="jobs-table">
+    <thead>
+      <tr>
+        <th>Компанія</th>
+        <th>Країна</th>
+        <th>Олив</th>
+        <th>Оброблено фото</th>
+        <th>Опубліковано</th>
+        <th>Excel</th>
+        <th>Фото</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      <% companies.forEach(c => { %>
+        <tr>
+          <td><strong><%= c.name_company %></strong></td>
+          <td><%= c.country || "—" %></td>
+          <td><span class="kind-pill"><%= c.oils_count %></span></td>
+          <td><span class="kind-pill"><%= c.processed_count %></span></td>
+          <td><span class="kind-pill"><%= c.published_count %></span></td>
+          <td class="text-muted" style="font-size:0.78rem">
+            <% if (c.xlsx_at) { %>
+              <%= new Date(c.xlsx_at).toLocaleString("uk-UA") %>
+            <% } else { %>—<% } %>
+          </td>
+          <td class="text-muted" style="font-size:0.78rem">
+            <% if (c.photos_at) { %>
+              <%= new Date(c.photos_at).toLocaleString("uk-UA") %>
+            <% } else { %>—<% } %>
+          </td>
+          <td><a href="/companies/<%= c.id %>">переглянути →</a></td>
+        </tr>
+      <% }) %>
+      <% if (companies.length === 0) { %>
+        <tr><td colspan="8" class="muted">Поки немає компаній — почніть з імпорту</td></tr>
+      <% } %>
+    </tbody>
+  </table>
+</section>

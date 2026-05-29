@@ -34,7 +34,7 @@ async function buildServer() {
     engine: { ejs },
     root: path.join(__dirname, "views"),
     layout: "layout.ejs",
-    defaultContext: { user: null, flash: null },
+    defaultContext: { user: null, flash: null, active: null },
     propertyName: "view",
   });
   await fastify.register(require("@fastify/static"), {
@@ -50,9 +50,11 @@ async function buildServer() {
   // 3. Routes
   await fastify.register(require("./routes/auth.routes"));
   await fastify.register(require("./routes/dashboard.routes"), { db, jobsRepo });
-  await fastify.register(require("./routes/upload.routes"), { db, runner });
-  await fastify.register(require("./routes/photos.routes"), { runner });
-  await fastify.register(require("./routes/integrations.routes"), { runner });
+  await fastify.register(require("./routes/import.routes"), { db, runner });
+  await fastify.register(require("./routes/companies.routes"), { db, runner });
+  await fastify.register(require("./routes/oils.routes"), { db, runner });
+  await fastify.register(require("./routes/prompts.routes"), { db });
+  await fastify.register(require("./routes/integrations.routes"), { runner, jobsRepo });
   await fastify.register(require("./routes/jobs.routes"), { jobsRepo, runner });
 
   return fastify;

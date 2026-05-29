@@ -45,6 +45,13 @@ class JobsRepo {
     );
   }
 
+  async finishCancelled(id) {
+    await this.db.query(
+      `UPDATE web_jobs SET status='cancelled', finished_at = NOW() WHERE id = $1`,
+      [id],
+    );
+  }
+
   listRecent(limit = 20) {
     return this.db.query(
       `SELECT id, kind, status, started_at, finished_at, created_at

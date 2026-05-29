@@ -1,10 +1,11 @@
 async function dashboardRoutes(fastify, { db, jobsRepo }) {
   fastify.get("/", { preHandler: fastify.requireAuth }, async (req, reply) => {
     const stats = await fetchStats(db);
-    const jobs = await jobsRepo.listRecent(15);
+    const jobs = await jobsRepo.listRecent(8);
     return reply.view("dashboard.ejs", {
       title: "Дашборд",
       user: req.user,
+      active: "dashboard",
       stats,
       jobs,
     });

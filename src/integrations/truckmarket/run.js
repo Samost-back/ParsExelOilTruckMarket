@@ -19,6 +19,7 @@ const { buildDefaultRegistry } = require("./handlers/handler-registry");
 const { Orchestrator } = require("./orchestrator");
 const { OpenAIClient } = require("../openai/openai-client");
 const { DescriptionGenerator } = require("../openai/description-generator");
+const { PromptsRepo } = require("../openai/prompts-repo");
 
 function parseArgs() {
   const args = process.argv.slice(2);
@@ -27,7 +28,7 @@ function parseArgs() {
   return { limit: limitArg ? parseInt(limitArg, 10) : 1000, noAi };
 }
 
-function buildDescriptionService(repo, { noAi }) {
+function buildDescriptionService(oilsRepo, promptsRepo, { noAi }) {
   if (noAi) {
     log.warn("AI-описи вимкнено (--no-ai)");
     return null;
@@ -37,8 +38,16 @@ function buildDescriptionService(repo, { noAi }) {
     return null;
   }
   const client = new OpenAIClient();
-  const generator = new DescriptionGenerator({ client });
-  return new DescriptionService({ generator, repo });
+  // promptResolver — на кожен виклик читає актуальний дефолтний промпт з БД,
+  // щоб правки через UI підхоплювались без рестарту.
+  const generator = new DescriptionGenerator({
+    client,
+    promptResolver: async () => {
+      const p = await promptsRepo.findDefault();
+      return p ? p.body : null;
+    },
+  });
+  return new DescriptionService({ generator, repo: oilsRepo });
 }
 
 (async () => {
@@ -48,15 +57,17 @@ function buildDescriptionService(repo, { noAi }) {
 
     const api = new TruckMarketClient();
     const repo = new OilsRepo(db);
+    const promptsRepo = new PromptsRepo(db);
 
     const publishService = new ListingPublishService({ api, repo });
     const photoService   = new PhotoUploadService({ api, repo });
-    const descService    = buildDescriptionService(repo, { noAi });
+    const descService    = buildDescriptionService(repo, promptsRepo, { noAi });
 
     const truckHandler = new TruckMarketHandler({
       publishService,
       photoService,
       descriptionService: descService,
+      oilsRepo: repo,
     });
     const registry = buildDefaultRegistry({ truckMarketHandler: truckHandler });
 

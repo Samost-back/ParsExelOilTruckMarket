@@ -1,0 +1,47 @@
+<div class="page-header">
+  <div>
+    <a href="javascript:history.back()" class="btn-link breadcrumb-back">← Назад</a>
+    <h1><%= oil.name %></h1>
+    <p class="subtitle">
+      <code><%= oil.articul %></code> · <%= oil.name_company %>
+    </p>
+  </div>
+</div>
+
+<section class="card">
+  <% if (images.length === 0) { %>
+    <div class="muted">Фото немає</div>
+  <% } else { %>
+    <div class="img-gallery">
+      <% images.forEach(img => { %>
+        <div class="img-card">
+          <div class="img-card-row">
+            <div class="img-card-thumb">
+              <a href="/oils/<%= oil.id %>/image/<%= img.id %>?kind=original" target="_blank">
+                <img src="/oils/<%= oil.id %>/image/<%= img.id %>?kind=original" loading="lazy" alt="оригінал" />
+              </a>
+              <div class="img-card-cap">Оригінал</div>
+            </div>
+            <div class="img-card-thumb">
+              <% if (img.processed_status === 'done') { %>
+                <a href="/oils/<%= oil.id %>/image/<%= img.id %>" target="_blank">
+                  <img src="/oils/<%= oil.id %>/image/<%= img.id %>" loading="lazy" alt="оброблене" />
+                </a>
+                <div class="img-card-cap"><span class="badge badge-done">оброблене</span></div>
+              <% } else if (img.processed_status === 'skipped') { %>
+                <div class="img-card-empty">⊘ skipped</div>
+                <div class="img-card-cap"><span class="badge badge-pending">пропущено</span></div>
+              <% } else if (img.processed_status === 'failed') { %>
+                <div class="img-card-empty">✗ failed</div>
+                <div class="img-card-cap"><span class="badge badge-failed">помилка</span></div>
+              <% } else { %>
+                <div class="img-card-empty">—</div>
+                <div class="img-card-cap"><span class="badge badge-pending">очікує</span></div>
+              <% } %>
+            </div>
+          </div>
+        </div>
+      <% }) %>
+    </div>
+  <% } %>
+</section>

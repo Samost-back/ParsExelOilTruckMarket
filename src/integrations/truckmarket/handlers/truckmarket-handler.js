@@ -3,15 +3,19 @@
 // DIP: всі залежності — через конструктор; легко підмінити mock'ами в тестах.
 
 class TruckMarketHandler {
-  constructor({ publishService, photoService, descriptionService = null }) {
+  constructor({ publishService, photoService, descriptionService = null, oilsRepo = null }) {
     this.publishService = publishService;
     this.photoService = photoService;
     this.descriptionService = descriptionService; // опціонально (можна вимкнути OpenAI)
+    this.oilsRepo = oilsRepo; // опціонально — для оновлення truck_status у БД
   }
 
   get label() { return "TruckMarket"; }
 
   async handle(row) {
+    // 0. Позначити "в роботі" одразу — щоб у БД було видно
+    if (this.oilsRepo) await this.oilsRepo.markTruckInProgress(row.id);
+
     // 1. Опис (опціонально). Сервіс не кидає винятків — повертає {text} або {error}.
     let description;
     let descriptionWarn = null;
@@ -29,12 +33,14 @@ class TruckMarketHandler {
       warnings = r.warnings || [];
     } catch (e) {
       const isMapping = /Немає мапінгу/.test(e.message);
+      if (this.oilsRepo) await this.oilsRepo.markTruckFailed(row.id, e.message);
       return {
         status: isMapping ? "mapping_error" : "api_error",
         reason: e.message,
         warnings: descriptionWarn ? [descriptionWarn] : [],
       };
     }
+    // успіх — truck_status='done' вже виставлений у publishService.setListingId
     if (descriptionWarn) warnings.push(descriptionWarn);
 
     // 3. Фото.

@@ -23,8 +23,8 @@ const { Client } = require("pg");
 const CFG = require("./template-config.cjs");
 
 const COUNTRY_FALLBACK = "Німеччина";
-const TEMPLATES_DIR = path.resolve(__dirname, "..", "..", "PhotoTruckMarket", "templates");
-const OUTPUT_ROOT = path.resolve(__dirname, "..", "..", "photos_storage", "processed");
+const TEMPLATES_DIR = path.resolve(__dirname, "..", "browser-tool", "templates");
+const OUTPUT_ROOT = path.resolve(__dirname, "..", "..", "..", "photos_storage", "processed");
 
 // === допоміжне ===
 
@@ -161,9 +161,10 @@ async function processOne({ srcPath, articul, country, outDir }) {
     `</svg>`, "utf-8");
 
   const countryShiftX = CFG.COUNTRY_TEXT.offsetX || 0;
+  const countryShiftY = CFG.COUNTRY_TEXT.offsetY || 0;
   const countryLeft = pos.country.left + countryShiftX;
   const fontSize = Math.max(6, pos.country.height * (CFG.COUNTRY_TEXT.heightRatio || 0.78));
-  const ty = pos.country.top + pos.country.height / 2;
+  const ty = pos.country.top + pos.country.height / 2 + countryShiftY;
 
   // Прапор країни — три (або скільки задано) горизонтальні смуги зліва від тексту.
   // Перекриває чорний кружок-плейсхолдер на оригінальному шаблоні.

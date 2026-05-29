@@ -1,0 +1,37 @@
+<div class="page-header">
+  <div>
+    <a href="/prompts" class="btn-link breadcrumb-back">← Усі промпти</a>
+    <h1><%= mode === "create" ? "Новий промпт" : prompt.name %></h1>
+    <p class="subtitle">System-prompt що подається в OpenAI при кожному виклику</p>
+  </div>
+</div>
+
+<section class="card">
+  <form method="post" action="<%= mode === 'create' ? '/prompts' : ('/prompts/' + prompt.id) %>" class="form">
+    <label class="field">
+      <span class="field-label">Назва <span class="req">*</span></span>
+      <input name="name" required value="<%= prompt.name %>" placeholder="TruckMarket SEO" />
+      <span class="field-hint">Для внутрішнього використання, не показується в OpenAI</span>
+    </label>
+
+    <label class="field">
+      <span class="field-label">Текст промпту <span class="req">*</span></span>
+      <textarea name="body" required rows="20"><%= prompt.body %></textarea>
+      <span class="field-hint">Передається як <code>role: "system"</code> при кожній генерації опису</span>
+    </label>
+
+    <% if (mode === "create") { %>
+      <label class="checkbox">
+        <input type="checkbox" name="makeDefault" />
+        <span>Зробити дефолтним (використовуватись при публікації)</span>
+      </label>
+    <% } %>
+
+    <div class="form-actions">
+      <button type="submit" class="btn-primary">
+        <%= mode === "create" ? "Створити" : "Зберегти" %>
+      </button>
+      <a href="/prompts" class="btn-link">Скасувати</a>
+    </div>
+  </form>
+</section>
