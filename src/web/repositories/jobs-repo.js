@@ -44,6 +44,17 @@ class JobsRepo {
     return r.rows;
   }
 
+  // Зберігає зведення (diff) у params.summary — звідти job.ejs малює картку.
+  // Зливаємо в наявний params jsonb, не затираючи інші ключі.
+  async setSummary(id, summary) {
+    await this.db.query(
+      `UPDATE web_jobs
+          SET params = jsonb_set(COALESCE(params, '{}'::jsonb), '{summary}', $2::jsonb, true)
+        WHERE id = $1`,
+      [id, JSON.stringify(summary)],
+    );
+  }
+
   async appendLog(id, line) {
     await this.db.query(
       `UPDATE web_jobs SET log = log || $2 || E'\n' WHERE id = $1`,

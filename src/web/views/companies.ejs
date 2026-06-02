@@ -28,16 +28,8 @@
           <td><span class="kind-pill"><%= c.oils_count %></span></td>
           <td><span class="kind-pill"><%= c.processed_count %></span></td>
           <td><span class="kind-pill"><%= c.published_count %></span></td>
-          <td class="text-muted" style="font-size:0.78rem">
-            <% if (c.xlsx_at) { %>
-              <%= new Date(c.xlsx_at).toLocaleString("uk-UA") %>
-            <% } else { %>—<% } %>
-          </td>
-          <td class="text-muted" style="font-size:0.78rem">
-            <% if (c.photos_at) { %>
-              <%= new Date(c.photos_at).toLocaleString("uk-UA") %>
-            <% } else { %>—<% } %>
-          </td>
+          <td class="text-muted" style="font-size:0.78rem"><%= fmtDate(c.xlsx_at) %></td>
+          <td class="text-muted" style="font-size:0.78rem"><%= fmtDate(c.photos_at) %></td>
           <td><a href="/companies/<%= c.id %>">переглянути →</a></td>
         </tr>
       <% }) %>

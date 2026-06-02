@@ -171,6 +171,16 @@ function unzipIfNeeded(inputPath) {
     if (noPhotoRows.length > 15) console.log(`  ... та ще ${noPhotoRows.length - 15}`);
   }
 
+  // Машиночитаний маркер для web job (картка-зведення).
+  console.log("@@PHOTOLINK@@ " + JSON.stringify({
+    files: files.length,
+    matched: stats.matched_files,
+    linked: stats.linked,
+    dup: stats.duplicated,
+    unmatched: stats.no_oil.length,
+    oilsWithoutPhoto: noPhotoRows.length,
+  }));
+
   await db.end();
   console.log("\n✓ Готово");
 })().catch(e => { console.error("FATAL:", e); process.exit(1); });

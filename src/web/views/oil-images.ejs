@@ -9,6 +9,48 @@
 </div>
 
 <section class="card">
+  <div class="card-header">
+    <h2>Історія цін</h2>
+    <% if (oil.truck_status === 'outdated') { %>
+      <form method="post" action="/oils/<%= oil.id %>/sync-tm"
+            data-confirm="Оновити ціну оголошення #<%= oil.truck_listing_id %> на TruckMarket?">
+        <button type="submit" class="btn-warning btn-sm">⟳ Оновити на TruckMarket</button>
+      </form>
+    <% } %>
+  </div>
+  <% if (oil.truck_status === 'outdated') { %>
+    <div class="flash flash-info">
+      Ціну змінено після публікації — оголошення на TruckMarket застаріле. Натисніть «Оновити», щоб синхронізувати.
+    </div>
+  <% } %>
+  <% if (!priceHistory || priceHistory.length === 0) { %>
+    <div class="muted">Історії цін немає</div>
+  <% } else { %>
+    <table class="jobs-table">
+      <thead>
+        <tr><th>Ціна</th><th>Діє з</th><th>Діє до</th><th>Статус</th></tr>
+      </thead>
+      <tbody>
+        <% priceHistory.forEach((p, i) => { %>
+          <tr>
+            <td><strong><%= p.price %> ₴</strong></td>
+            <td><%= fmtDate(p.valid_from) %></td>
+            <td><%= fmtDate(p.valid_to) %></td>
+            <td>
+              <% if (!p.valid_to) { %>
+                <span class="badge badge-done">поточна</span>
+              <% } else { %>
+                <span class="badge badge-pending">архів</span>
+              <% } %>
+            </td>
+          </tr>
+        <% }) %>
+      </tbody>
+    </table>
+  <% } %>
+</section>
+
+<section class="card">
   <% if (images.length === 0) { %>
     <div class="muted">Фото немає</div>
   <% } else { %>

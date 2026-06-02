@@ -1,0 +1,15 @@
+<%
+  // Результат AI-симуляції опису (HTMX-фрагмент). Очікує: ok, text?, error?, oilName?
+%>
+<% if (ok) { %>
+  <div class="sim-result">
+    <div class="sim-result-head">
+      <span class="badge badge-done">Згенеровано</span>
+      <span class="text-muted"><%= oilName %></span>
+    </div>
+    <div class="sim-result-body"><%= text %></div>
+    <p class="field-hint">Це попередній перегляд. У БД нічого не збережено.</p>
+  </div>
+<% } else { %>
+  <div class="flash flash-error"><%= error %></div>
+<% } %>

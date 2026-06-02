@@ -53,6 +53,9 @@ class Orchestrator {
         for (const f of result.photos.failed) log.raw(`      ✗ ${f.file}: ${f.error}`);
       }
       this.stats.addCreated(row, result.listingId, result.photos);
+    } else if (result.status === "no_photos") {
+      log.skip(`   ⊘ ${result.reason}`);
+      this.stats.addNoPhotos(row);
     } else if (result.status === "mapping_error") {
       log.err(`   mapping_error: ${result.reason}`);
       this.stats.addMappingError(row, result.reason);

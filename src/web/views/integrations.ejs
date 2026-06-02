@@ -34,7 +34,7 @@
     <div class="form-actions">
       <a href="/jobs/<%= activeJob.id %>" class="btn-primary">Відкрити лог</a>
       <form method="post" action="/jobs/<%= activeJob.id %>/cancel" style="display:inline"
-            onsubmit="return confirm('Зупинити публікацію?');">
+            data-confirm="Зупинити публікацію?">
         <button type="submit" class="btn-danger">⊘ Зупинити</button>
       </form>
     </div>

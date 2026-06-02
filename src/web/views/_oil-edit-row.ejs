@@ -1,0 +1,78 @@
+<%
+  // Рядок-редактор оливи (HTMX). Розгортається на всю ширину таблиці.
+  // Очікує: o (повний рядок), types (масив name_type_oil), TABLE_COLS (число колонок).
+%>
+<tr id="oil-row-<%= o.id %>" class="edit-row">
+  <td colspan="<%= TABLE_COLS %>">
+    <form hx-patch="/oils/<%= o.id %>" hx-target="#oil-row-<%= o.id %>" hx-swap="outerHTML">
+      <div class="edit-grid">
+        <label class="field">
+          <span class="field-label">Назва</span>
+          <input type="text" name="name" value="<%= o.name || '' %>" required />
+        </label>
+        <label class="field">
+          <span class="field-label">Бренд</span>
+          <input type="text" name="brand" value="<%= o.brand || '' %>" />
+        </label>
+        <label class="field">
+          <span class="field-label">Місто</span>
+          <input type="text" name="city" value="<%= o.city || '' %>" />
+        </label>
+        <label class="field">
+          <span class="field-label">Тип</span>
+          <select name="name_type_oil">
+            <% (types || []).forEach(t => { %>
+              <option value="<%= t %>" <%= o.name_type_oil === t ? 'selected' : '' %>><%= t %></option>
+            <% }) %>
+          </select>
+        </label>
+        <label class="field">
+          <span class="field-label">Об'єм, л</span>
+          <input type="number" name="packaging_volume" value="<%= o.packaging_volume %>" step="0.1" min="0" />
+        </label>
+        <label class="field">
+          <span class="field-label">Кількість</span>
+          <input type="number" name="quantity" value="<%= o.quantity != null ? o.quantity : '' %>" min="0" step="1" />
+        </label>
+        <label class="field">
+          <span class="field-label">Ціна, ₴</span>
+          <input type="number" name="price" value="<%= o.price != null ? o.price : '' %>" min="0" step="1" />
+        </label>
+        <label class="field">
+          <span class="field-label">SAE</span>
+          <input type="text" name="viscosity_sae" value="<%= o.viscosity_sae || '' %>" />
+        </label>
+        <label class="field">
+          <span class="field-label">ACEA</span>
+          <input type="text" name="acea" value="<%= o.acea || '' %>" />
+        </label>
+        <label class="field">
+          <span class="field-label">API</span>
+          <input type="text" name="api" value="<%= o.api || '' %>" />
+        </label>
+        <label class="field">
+          <span class="field-label">Допуски виробників</span>
+          <input type="text" name="manufacturers_tolerances" value="<%= o.manufacturers_tolerances || '' %>" />
+        </label>
+        <label class="field">
+          <span class="field-label">DOT</span>
+          <input type="text" name="dot" value="<%= o.dot || '' %>" />
+        </label>
+        <label class="field">
+          <span class="field-label">ISO VG</span>
+          <input type="text" name="iso_vg_viscosity_grade" value="<%= o.iso_vg_viscosity_grade || '' %>" />
+        </label>
+        <label class="field">
+          <span class="field-label">Колір</span>
+          <input type="text" name="color_liquid" value="<%= o.color_liquid || '' %>" />
+        </label>
+      </div>
+      <div class="edit-actions">
+        <button type="submit" class="btn-primary btn-sm">Зберегти</button>
+        <button type="button" class="btn-ghost btn-sm"
+                hx-get="/oils/<%= o.id %>/row" hx-target="#oil-row-<%= o.id %>" hx-swap="outerHTML">Скасувати</button>
+        <span class="htmx-indicator text-muted">збереження…</span>
+      </div>
+    </form>
+  </td>
+</tr>

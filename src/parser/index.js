@@ -2,7 +2,7 @@ require("dotenv").config();
 const xlsx = require("xlsx");
 const fs = require("fs");
 const path = require("path");
-const { Client } = require("pg");
+const { saveOils } = require("./shared/save-oils");
 const {
   SECTION_RE,
   TYPE_OIL_MAP,
@@ -17,18 +17,22 @@ const {
   CAR_BRANDS,
   CAR_BRAND_KEYS_SORTED,
 } = require("./constants");
-const [, , companyArg, excelArg] = process.argv;
+const [, , companyArg, excelArg, ...restArgs] = process.argv;
 if (!companyArg || !excelArg) {
-  console.error('Usage: node parser.js "<Company Name>" <excel-file>');
+  console.error(
+    'Usage: node parser.js "<Company Name>" <excel-file> [--integration=CODE]',
+  );
   process.exit(1);
 }
-const DB_CONFIG = {
-  host: process.env.PG_HOST || "localhost",
-  port: parseInt(process.env.PG_PORT || "5432"),
-  database: process.env.PG_DB || "postgres",
-  user: process.env.PG_USER || "postgres",
-  password: process.env.PG_PASSWORD || "",
-};
+// Яка інтеграція дала ці дані. Поки що єдина — EUROLUB.
+// Реєстр інтеграцій у БД (таблиця integrations) — єдине джерело правди
+// про те, звідки беруться бренд і місто для кожного стандарту.
+const integrationArg =
+  (restArgs.find((a) => a.startsWith("--integration=")) || "")
+    .split("=")[1] || "EUROLUB";
+// --dry-run: показати, що зміниться (нові/оновлені/зміни цін), і відкотити
+// транзакцію — нічого не записується. Корисно перед реальним оновленням прайсу.
+const DRY_RUN = restArgs.includes("--dry-run");
 const excelPath = path.resolve(excelArg);
 if (!fs.existsSync(excelPath)) {
   console.error(`File not found: ${excelPath}`);
@@ -353,6 +357,10 @@ for (const b of blocks) {
       dot: dotValue,
       quantity: DEFAULT_QUANTITY,
       car_brand: specs.car_brand,
+      // brand/city проставляються нижче згідно з правилами інтеграції,
+      // коли вже відома integrations-рядок (brand_source / city_source).
+      brand: null,
+      city: null,
       price:
         v.recommended_price != null
           ? Math.round(v.recommended_price / 10) * 10
@@ -361,131 +369,15 @@ for (const b of blocks) {
   }
 }
 async function saveToDb() {
-  const client = new Client(DB_CONFIG);
-  await client.connect();
-  console.log("✓ Підключено до PostgreSQL");
-  try {
-    await client.query("BEGIN");
-    const companyRes = await client.query(
-      `INSERT INTO public.company_olivs (name_company)
-       VALUES ($1)
-       ON CONFLICT DO NOTHING
-       RETURNING id`,
-      [companyArg],
-    );
-    let companyId;
-    if (companyRes.rows.length > 0) {
-      companyId = companyRes.rows[0].id;
-      console.log(`✓ Створено компанію id=${companyId}`);
-    } else {
-      const existing = await client.query(
-        `SELECT id FROM public.company_olivs WHERE name_company = $1`,
-        [companyArg],
-      );
-      companyId = existing.rows[0].id;
-      console.log(`✓ Знайдено існуючу компанію id=${companyId}`);
-    }
-    let inserted = 0;
-    let updated = 0;
-    let pricesSet = 0;
-    for (const oil of oils) {
-      const oilRes = await client.query(
-        `INSERT INTO public.olivs (
-          company_id, name_type_oil, name, articul, packaging_volume, description,
-          type_oil, low_level_saps, manufacturers_tolerances,
-          acea, api, color_liquid, iso_vg_viscosity_grade,
-          standart_g, dot, viscosity_sae, quantity, car_brand
-        ) VALUES (
-          $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18
-        )
-        ON CONFLICT (company_id, articul) DO UPDATE SET
-          name_type_oil            = EXCLUDED.name_type_oil,
-          name                     = EXCLUDED.name,
-          packaging_volume         = EXCLUDED.packaging_volume,
-          description              = EXCLUDED.description,
-          type_oil                 = EXCLUDED.type_oil,
-          low_level_saps           = EXCLUDED.low_level_saps,
-          manufacturers_tolerances = EXCLUDED.manufacturers_tolerances,
-          acea                     = EXCLUDED.acea,
-          api                      = EXCLUDED.api,
-          color_liquid             = EXCLUDED.color_liquid,
-          iso_vg_viscosity_grade   = EXCLUDED.iso_vg_viscosity_grade,
-          standart_g               = EXCLUDED.standart_g,
-          dot                      = EXCLUDED.dot,
-          viscosity_sae            = EXCLUDED.viscosity_sae,
-          quantity                 = EXCLUDED.quantity,
-          car_brand                = EXCLUDED.car_brand
-        RETURNING id, (xmax = 0) AS is_insert`,
-        [
-          companyId,
-          oil.name_type_oil,
-          oil.name,
-          oil.articul,
-          oil.packaging_volume,
-          oil.description,
-          oil.type_oil,
-          oil.low_level_saps,
-          oil.manufacturers_tolerances,
-          oil.acea,
-          oil.api,
-          oil.color_liquid,
-          oil.iso_vg_viscosity_grade,
-          oil.standart_g,
-          oil.dot,
-          oil.viscosity_sae,
-          oil.quantity,
-          oil.car_brand,
-        ],
-      );
-      const oilId = oilRes.rows[0].id;
-      const isInsert = oilRes.rows[0].is_insert;
-      if (isInsert) inserted++;
-      else updated++;
-      if (oil.price != null) {
-        await client.query(
-          `UPDATE public.oils_price SET valid_to = NOW()
-           WHERE oils_id = $1 AND valid_to IS NULL`,
-          [oilId],
-        );
-        const lastPrice = await client.query(
-          `SELECT price FROM public.oils_price
-           WHERE oils_id = $1 ORDER BY valid_from DESC LIMIT 1`,
-          [oilId],
-        );
-        const prevPrice =
-          lastPrice.rows.length > 0 ? lastPrice.rows[0].price : null;
-        if (prevPrice === null || prevPrice !== oil.price) {
-          await client.query(
-            `INSERT INTO public.oils_price (oils_id, price, valid_from, valid_to)
-             VALUES ($1, $2, NOW(), NULL)`,
-            [oilId, oil.price],
-          );
-          pricesSet++;
-        } else {
-          await client.query(
-            `UPDATE public.oils_price SET valid_to = NULL
-             WHERE oils_id = $1 AND valid_from = (
-               SELECT valid_from FROM public.oils_price
-               WHERE oils_id = $1 ORDER BY valid_from DESC LIMIT 1
-             )`,
-            [oilId],
-          );
-        }
-      }
-    }
-    await client.query("COMMIT");
-    console.log(`✓ Розпарсено продуктів: ${blocks.length}`);
-    console.log(`✓ Оброблено olivs-записів: ${oils.length}`);
-    console.log(`  → Нових: ${inserted}, оновлених: ${updated}`);
-    console.log(`  → Цін записано/оновлено: ${pricesSet}`);
-    if (skipped.length) console.log(`  Пропущено варіантів: ${skipped.length}`);
-  } catch (err) {
-    await client.query("ROLLBACK");
-    console.error("✗ Помилка, транзакцію відкочено:", err.message);
-    throw err;
-  } finally {
-    await client.end();
-  }
+  // Збереження — спільний модуль save-oils (та сама логіка для всіх інтеграцій:
+  // upsert olivs, історія цін, прив'язка до інтеграції, 'outdated' для опубл.).
+  return saveOils({
+    company: companyArg,
+    integrationCode: integrationArg,
+    oils,
+    dryRun: DRY_RUN,
+    blocksCount: blocks.length,
+  });
 }
 saveToDb().catch((err) => {
   console.error(err);

@@ -29,13 +29,13 @@
             <% } %>
           </td>
           <td class="text-muted" style="font-size:0.78rem">
-            <%= new Date(p.updated_at).toLocaleString("uk-UA") %>
+            <%= fmtDate(p.updated_at) %>
           </td>
           <td>
             <a href="/prompts/<%= p.id %>/edit">редагувати →</a>
             <% if (!p.is_default) { %>
               <form method="post" action="/prompts/<%= p.id %>/delete" style="display:inline; margin-left:0.5rem"
-                    onsubmit="return confirm('Видалити промпт «<%= p.name %>»?')">
+                    data-confirm="Видалити промпт «<%= p.name %>»?">
                 <button type="submit" class="btn-link" style="color:var(--danger)">видалити</button>
               </form>
             <% } %>

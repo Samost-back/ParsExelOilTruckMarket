@@ -3,6 +3,8 @@ services:
     image: postgres:16-alpine
     restart: unless-stopped
     environment:
+      TZ: ${TZ:-Europe/Kyiv}
+      PGTZ: ${TZ:-Europe/Kyiv}
       POSTGRES_USER:     ${PG_USER:?PG_USER required in .env}
       POSTGRES_PASSWORD: ${PG_PASSWORD:?PG_PASSWORD required in .env}
       POSTGRES_DB:       ${PG_DB:?PG_DB required in .env}
@@ -27,6 +29,10 @@ services:
         condition: service_healthy
     environment:
       NODE_ENV: production
+      # Часовий пояс — Київ. Впливає на логи й Node Date; UI додатково
+      # форматує дати у Europe/Kyiv через view-helpers (UI_TZ).
+      TZ: ${TZ:-Europe/Kyiv}
+      UI_TZ: ${UI_TZ:-Europe/Kyiv}
       PORT: 3000
       HOST: 0.0.0.0
       # БД

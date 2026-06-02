@@ -12,6 +12,7 @@ const { JobsRepo } = require("./repositories/jobs-repo");
 const { JobRunner } = require("./services/job-runner");
 
 const authPlugin = require("./plugins/auth");
+const viewHelpers = require("./view-helpers");
 
 async function buildServer() {
   const fastify = Fastify({ logger: { level: process.env.LOG_LEVEL || "info" } });
@@ -49,7 +50,9 @@ async function buildServer() {
     engine: { ejs },
     root: path.join(__dirname, "views"),
     layout: "layout.ejs",
-    defaultContext: { user: null, flash: null, active: null },
+    // Хелпери (переклад статусів, форматування дат у Київському часі) — у
+    // defaultContext, тож доступні в кожному шаблоні без передачі вручну.
+    defaultContext: { user: null, flash: null, active: null, ...viewHelpers },
     propertyName: "view",
   });
   await fastify.register(require("@fastify/static"), {

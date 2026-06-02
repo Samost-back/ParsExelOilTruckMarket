@@ -1,0 +1,76 @@
+<%
+  // Партіал-зведення імпорту. Очікує: summary, STEP_LABELS, STEP_ICON.
+  // Малюється і сервером (job.ejs), і клієнтом (renderSummary у job.ejs).
+  if (summary) {
+    const d = summary.diff;            // оливи/ціни
+    const pl = summary.photoLink;      // нові зв'язки фото
+    const pp = summary.photoProcess;   // обробка фото
+%>
+<div class="summary-meta">
+  <span class="chip">Режим: <strong><%= summary.mode %></strong></span>
+  <% if (summary.integration) { %><span class="chip">Інтеграція: <strong><%= summary.integration %></strong></span><% } %>
+  <% if (summary.company) { %><span class="chip">Компанія: <strong><%= summary.company %></strong></span><% } %>
+</div>
+
+<ul class="summary-steps">
+  <% for (const s of (summary.steps || [])) {
+       const icon = (typeof STEP_ICON !== "undefined" && STEP_ICON[s.status]) || "○";
+       const nameLbl = (typeof importStepLabel === "function") ? importStepLabel(s.name)
+                        : ((typeof STEP_LABELS !== "undefined" && STEP_LABELS[s.name]) || s.name);
+       const statusLbl = (typeof stepStatusLabel === "function") ? stepStatusLabel(s.status) : s.status;
+  %>
+    <li class="step step-<%= s.status %>">
+      <span class="step-icon"><%= icon %></span>
+      <span class="step-name"><%= nameLbl %></span>
+      <span class="step-status"><%= statusLbl %></span>
+    </li>
+  <% } %>
+</ul>
+
+<% if (d) { %>
+  <div class="summary-section">
+    <h3>Оливи / ціни</h3>
+    <div class="stat-grid">
+      <div class="stat"><span class="stat-num stat-new"><%= d.inserted %></span><span class="stat-lbl">створено</span></div>
+      <div class="stat"><span class="stat-num"><%= d.updated %></span><span class="stat-lbl">оновлено</span></div>
+      <div class="stat"><span class="stat-num stat-price"><%= d.pricesSet %></span><span class="stat-lbl">зміни ціни</span></div>
+      <div class="stat"><span class="stat-num stat-muted"><%= d.priceUnchanged %></span><span class="stat-lbl">ціна без змін</span></div>
+      <% if (d.outdated) { %><div class="stat"><span class="stat-num stat-warn"><%= d.outdated %></span><span class="stat-lbl">треба оновити на TM</span></div><% } %>
+    </div>
+    <% if (d.newExamples && d.newExamples.length) { %>
+      <details class="summary-details"><summary>Нові товари (<%= d.newExamples.length %>)</summary>
+        <ul><% for (const e of d.newExamples) { %><li>+ <%= e %></li><% } %></ul>
+      </details>
+    <% } %>
+    <% if (d.priceChanges && d.priceChanges.length) { %>
+      <details class="summary-details"><summary>Зміни цін (<%= d.priceChanges.length %>)</summary>
+        <ul><% for (const e of d.priceChanges) { %><li>~ <%= e %></li><% } %></ul>
+      </details>
+    <% } %>
+  </div>
+<% } %>
+
+<% if (pl) { %>
+  <div class="summary-section">
+    <h3>Фото — прив'язка</h3>
+    <div class="stat-grid">
+      <div class="stat"><span class="stat-num"><%= pl.files %></span><span class="stat-lbl">файлів</span></div>
+      <div class="stat"><span class="stat-num stat-new"><%= pl.linked %></span><span class="stat-lbl">нових зв'язків</span></div>
+      <div class="stat"><span class="stat-num stat-muted"><%= pl.dup %></span><span class="stat-lbl">вже були</span></div>
+      <% if (pl.unmatched) { %><div class="stat"><span class="stat-num stat-warn"><%= pl.unmatched %></span><span class="stat-lbl">без оливи</span></div><% } %>
+      <% if (pl.oilsWithoutPhoto != null) { %><div class="stat"><span class="stat-num stat-muted"><%= pl.oilsWithoutPhoto %></span><span class="stat-lbl">олив без фото</span></div><% } %>
+    </div>
+  </div>
+<% } %>
+
+<% if (pp) { %>
+  <div class="summary-section">
+    <h3>Фото — обробка</h3>
+    <div class="stat-grid">
+      <div class="stat"><span class="stat-num stat-new"><%= pp.done %></span><span class="stat-lbl">оброблено</span></div>
+      <% if (pp.skipped) { %><div class="stat"><span class="stat-num stat-muted"><%= pp.skipped %></span><span class="stat-lbl">пропущено</span></div><% } %>
+      <% if (pp.failed) { %><div class="stat"><span class="stat-num stat-warn"><%= pp.failed %></span><span class="stat-lbl">помилок</span></div><% } %>
+    </div>
+  </div>
+<% } %>
+<% } %>

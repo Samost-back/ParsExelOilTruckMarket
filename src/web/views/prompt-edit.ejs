@@ -16,7 +16,7 @@
 
     <label class="field">
       <span class="field-label">Текст промпту <span class="req">*</span></span>
-      <textarea name="body" required rows="20"><%= prompt.body %></textarea>
+      <textarea name="body" id="promptBody" required rows="20"><%= prompt.body %></textarea>
       <span class="field-hint">Передається як <code>role: "system"</code> при кожній генерації опису</span>
     </label>
 
@@ -34,4 +34,34 @@
       <a href="/prompts" class="btn-link">Скасувати</a>
     </div>
   </form>
+</section>
+
+<section class="card">
+  <div class="card-header">
+    <h2>🧪 Симулятор опису</h2>
+  </div>
+  <p class="field-hint sim-hint">
+    Виберіть оливу і згенеруйте приблизний опис за <strong>поточним текстом промпту вище</strong>
+    (навіть незбережені зміни враховуються). Результат у БД не зберігається.
+  </p>
+  <div class="sim-controls">
+    <label class="field sim-select">
+      <span class="field-label">Олива</span>
+      <select id="simOil" name="oils_id">
+        <option value="">— виберіть оливу —</option>
+        <% (oils || []).forEach(o => { %>
+          <option value="<%= o.id %>"><%= o.name %> · <%= o.articul %> (<%= o.name_company %>)</option>
+        <% }) %>
+      </select>
+    </label>
+    <button type="button" class="btn-primary"
+            hx-post="/prompts/simulate"
+            hx-include="#promptBody, #simOil"
+            hx-target="#simResult" hx-swap="innerHTML"
+            hx-indicator="#simSpin">
+      ▶ Симулювати
+    </button>
+    <span id="simSpin" class="htmx-indicator text-muted">генерація…</span>
+  </div>
+  <div id="simResult"></div>
 </section>

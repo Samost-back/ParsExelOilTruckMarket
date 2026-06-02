@@ -29,6 +29,9 @@
     <% } %>
   </header>
 
+  <!-- Спливаючі сповіщення (toast) -->
+  <div id="toastHost" class="toast-host" aria-live="polite"></div>
+
   <main class="container">
     <% if (typeof flash !== "undefined" && flash) { %>
       <div class="flash flash-<%= flash.type %>"><%= flash.message %></div>
@@ -39,5 +42,94 @@
   <footer class="footer">
     <small>Pars Excel Oil Truck Market</small>
   </footer>
+
+  <!-- Кастомний діалог підтвердження (замість браузерного confirm) -->
+  <div id="confirmModal" class="modal-overlay" hidden>
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="confirmText">
+      <div class="modal-body" id="confirmText"></div>
+      <div class="modal-actions">
+        <button type="button" class="btn-ghost btn-sm" id="confirmCancel">Скасувати</button>
+        <button type="button" class="btn-danger btn-sm" id="confirmOk">Підтвердити</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Toast: спливаюче сповіщення зверху. show(msg, type) — type: info|success|error.
+    window.showToast = function (msg, type) {
+      var host = document.getElementById("toastHost");
+      if (!host || !msg) return;
+      var el = document.createElement("div");
+      el.className = "toast toast-" + (type || "info");
+      el.textContent = msg;
+      host.appendChild(el);
+      requestAnimationFrame(function () { el.classList.add("show"); });
+      setTimeout(function () {
+        el.classList.remove("show");
+        setTimeout(function () { el.remove(); }, 250);
+      }, 3500);
+    };
+    // 1) ?flash=... у URL → показати toast і прибрати параметр з адреси.
+    (function () {
+      var p = new URLSearchParams(location.search);
+      var f = p.get("flash");
+      if (f) {
+        window.showToast(f, p.get("flash_type") || "success");
+        p.delete("flash"); p.delete("flash_type");
+        var qs = p.toString();
+        history.replaceState({}, "", location.pathname + (qs ? "?" + qs : ""));
+      }
+    })();
+    // 2) HTMX HX-Trigger {"toast": {...}} → показати toast.
+    document.body.addEventListener("toast", function (e) {
+      var d = e.detail || {};
+      window.showToast(d.message || d.value || "Готово", d.type || "info");
+    });
+
+    // Перехоплюємо forms з [data-confirm] і HTMX [hx-confirm] → показуємо гарну модалку.
+    (function () {
+      var overlay = document.getElementById("confirmModal");
+      var textEl  = document.getElementById("confirmText");
+      var okBtn   = document.getElementById("confirmOk");
+      var cancelBtn = document.getElementById("confirmCancel");
+      var pending = null;
+
+      function open(msg, onOk) {
+        textEl.textContent = msg || "Підтвердити дію?";
+        pending = onOk;
+        overlay.hidden = false;
+        okBtn.focus();
+      }
+      function close() { overlay.hidden = true; pending = null; }
+
+      okBtn.addEventListener("click", function () { var fn = pending; close(); if (fn) fn(); });
+      cancelBtn.addEventListener("click", close);
+      overlay.addEventListener("click", function (e) { if (e.target === overlay) close(); });
+      document.addEventListener("keydown", function (e) {
+        if (overlay.hidden) return;
+        if (e.key === "Escape") close();
+        else if (e.key === "Enter") { var fn = pending; close(); if (fn) fn(); }
+      });
+
+      // 1) Звичайні форми: <form data-confirm="...">
+      document.addEventListener("submit", function (e) {
+        var form = e.target;
+        if (form.matches && form.matches("form[data-confirm]") && !form.dataset.confirmed) {
+          e.preventDefault();
+          open(form.getAttribute("data-confirm"), function () {
+            form.dataset.confirmed = "1";
+            form.submit();
+          });
+        }
+      }, true);
+
+      // 2) HTMX: перехоплюємо вбудований confirm і малюємо свій.
+      document.addEventListener("htmx:confirm", function (e) {
+        if (!e.detail.question) return;       // немає hx-confirm → не чіпаємо
+        e.preventDefault();
+        open(e.detail.question, function () { e.detail.issueRequest(true); });
+      });
+    })();
+  </script>
 </body>
 </html>

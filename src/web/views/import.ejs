@@ -1,33 +1,59 @@
 <div class="page-header">
   <div>
-    <h1>Імпорт даних</h1>
-    <p class="subtitle">Завантаження прайсу і фото для однієї компанії</p>
+    <h1>Імпорт / оновлення даних</h1>
+    <p class="subtitle">Розумне оновлення: програма сама бачить, що змінилось</p>
   </div>
 </div>
+
+<section class="card info-card">
+  <h2>Як це працює</h2>
+  <ul class="info-list">
+    <li><strong>Прайс (xlsx):</strong> для кожного товару дивимось за <em>артикулом</em> — нового додаємо, наявному оновлюємо характеристики, ціну ведемо історією. Якщо ціна змінилась, а товар уже на TruckMarket — позначаємо «треба оновити».</li>
+    <li><strong>Папка з фото:</strong> матчимо фото до наявних олив (за артикулом/об'ємом) і обробляємо <em>лише нові</em> — накладаємо на шаблон бочки/каністри.</li>
+    <li><strong>Можна окремо:</strong> або тільки прайс, або тільки фото (донести фото до вже завантажених олив). Хоча б одне з двох.</li>
+    <li><strong>Контроль:</strong> після старту відкриється сторінка задачі з покроковими статусами, живим логом і карткою-зведенням (скільки створено / оновлено / змінено цін / додано фото).</li>
+  </ul>
+</section>
 
 <section class="card">
   <form method="post" action="/import" enctype="multipart/form-data" class="form">
     <div class="form-row">
       <label class="field">
-        <span class="field-label">Назва компанії <span class="req">*</span></span>
-        <input name="company" required placeholder="EUROLUB" autocomplete="off" />
-        <span class="field-hint">Якщо такої компанії немає — буде створена</span>
+        <span class="field-label">Інтеграція <span class="req">*</span></span>
+        <select name="integration" id="integrationSelect" required>
+          <% integrations.forEach(i => { %>
+            <option value="<%= i.code %>" <%= i.code === "EUROLUB" ? "selected" : "" %>><%= i.name %></option>
+          <% }) %>
+        </select>
+        <span class="field-hint">Стандарт прайсу. Визначає, звідки бренд і місто</span>
       </label>
 
-      <label class="field">
+      <label class="field" data-field="company">
+        <span class="field-label">Назва компанії <span class="req">*</span></span>
+        <input name="company" id="companyInput" required placeholder="EUROLUB" autocomplete="off" />
+        <span class="field-hint">Нова компанія створиться. Та сама — оновиться</span>
+      </label>
+
+      <label class="field" data-field="city">
+        <span class="field-label">Місто (локація оголошення)</span>
+        <input name="city" placeholder="Луцьк" autocomplete="off" />
+        <span class="field-hint">Місто компанії — стає локацією оголошення на TruckMarket</span>
+      </label>
+
+      <label class="field" data-field="country">
         <span class="field-label">Країна виробника</span>
         <input name="country" placeholder="Німеччина" autocomplete="off" />
-        <span class="field-hint">Назва країни накладається на оброблене фото</span>
+        <span class="field-hint">Опціонально. Накладається на оброблене фото</span>
       </label>
     </div>
 
     <label class="field">
-      <span class="field-label">Excel прайс <span class="req">*</span></span>
+      <span class="field-label">Excel прайс</span>
       <div class="file-drop file-drop--file" data-target="xlsx">
-        <input type="file" name="xlsx" id="xlsxInput" accept=".xlsx,.xls,.xlsm,.csv,.ods" required />
+        <input type="file" name="xlsx" id="xlsxInput" accept=".xlsx,.xls,.xlsm,.csv,.ods" />
         <div class="file-drop-text" data-default>
           <strong>Натисніть або перетягніть файл сюди</strong>
-          <span class="field-hint">Підтримуються .xlsx, .xls, .xlsm, .csv, .ods. Колонки: Найменування, Артикул, Упаковка, Ціна</span>
+          <span class="field-hint">Необов'язково, якщо доносите лише фото. Підтримуються .xlsx, .xls, .xlsm, .csv, .ods. Колонки: Найменування, Артикул, Упаковка, Ціна</span>
         </div>
         <div class="file-drop-selected" data-selected hidden>
           <div class="file-pill"><span class="file-icon">📄</span> <span data-name></span></div>
@@ -70,6 +96,7 @@
 </section>
 
 <script>
+
   (function () {
     function fmtBytes(n) {
       if (n < 1024) return n + " B";
@@ -139,6 +166,15 @@
 
     form.addEventListener("submit", function (e) {
       e.preventDefault();
+      // Хоча б одне з двох: прайс або папка фото.
+      var xlsxInput = document.getElementById("xlsxInput");
+      var photosInput = document.getElementById("photosInput");
+      var hasXlsx = xlsxInput && xlsxInput.files && xlsxInput.files.length > 0;
+      var hasPhotos = photosInput && photosInput.files && photosInput.files.length > 0;
+      if (!hasXlsx && !hasPhotos) {
+        alert("Додайте Excel прайс або папку з фото (хоча б одне).");
+        return;
+      }
       var fd = new FormData(form);
       var xhr = new XMLHttpRequest();
       xhr.open("POST", form.action, true);
@@ -211,7 +247,7 @@
             <% if (c.xlsx_path) { %>
               <code><%= c.xlsx_path %></code>
               <div class="text-muted" style="font-size:0.78rem">
-                <%= c.xlsx_at && new Date(c.xlsx_at).toLocaleString("uk-UA") %>
+                <%= fmtDate(c.xlsx_at) %>
               </div>
             <% } else { %>
               <span class="text-muted">—</span>
@@ -221,7 +257,7 @@
             <% if (c.photos_dir) { %>
               <code><%= c.photos_dir %></code>
               <div class="text-muted" style="font-size:0.78rem">
-                <%= c.photos_at && new Date(c.photos_at).toLocaleString("uk-UA") %>
+                <%= fmtDate(c.photos_at) %>
               </div>
             <% } else { %>
               <span class="text-muted">—</span>

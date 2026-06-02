@@ -27,6 +27,30 @@ class TruckMarketClient {
     return this.http.send({ method: "DELETE", path: `/intapi/v1/listings/delete/${listingId}` });
   }
 
+  // Шукає TM geo_city id за назвою міста (title_uk) через geo/regions/list.
+  // Кеш у пам'яті — щоб не питати TM на кожну оливу. Повертає число або null.
+  async findCityId(name) {
+    if (!name) return null;
+    const key = String(name).trim();
+    if (!key) return null;
+    if (!this._cityCache) this._cityCache = new Map();
+    if (this._cityCache.has(key)) return this._cityCache.get(key);
+    let id = null;
+    try {
+      const res = await this.http.send({
+        method: "POST",
+        path: "/intapi/v1/geo/regions/list",
+        json: { filter: { title_uk: key }, fields: ["*"], orderBy: "fav asc", limit: 1 },
+      });
+      const row = res && res.data && res.data[0];
+      if (row && row.id != null) id = Number(row.id);
+    } catch (_) {
+      id = null; // не падаємо — викличе fallback на env-дефолт
+    }
+    this._cityCache.set(key, id);
+    return id;
+  }
+
   // Оновлення оголошення. data — об'єкт з полями що змінюються (price, descr, ...).
   // Якщо TM віддасть 404 — endpoint неправильний (треба перевірити документацію).
   updateListing(listingId, data) {

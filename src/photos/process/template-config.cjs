@@ -71,7 +71,7 @@ module.exports = {
   },
 
   TEMPLATE_EXTS: ['png', 'jpg', 'jpeg'],
-  JPG_QUALITY: 90,
+  JPG_QUALITY: 95,
 
   BG_REMOVAL: {
     enabled: true,

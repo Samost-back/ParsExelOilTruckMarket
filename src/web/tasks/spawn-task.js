@@ -1,9 +1,15 @@
 const { spawn } = require("child_process");
 const path = require("path");
 
+// Машиночитані маркери: дочірній скрипт може вивести рядок "@@TAG@@ {json}".
+// Ми такі рядки НЕ показуємо в логах (вони службові), а збираємо у markers
+// і повертаємо батьку, щоб він склав картку-зведення (diff). Решта stdout → ctx.log.
+const MARKER_RE = /^@@([A-Z_]+)@@\s+(.*)$/;
+
 // Запускає Node-скрипт як child process. stdout/stderr → ctx.log.
 // Якщо в ctx є signal (AbortSignal) — при .abort() надсилає SIGTERM дочірньому процесу.
-// Повертає promise → resolve при exit 0, reject при non-zero/aborted.
+// Повертає promise → resolve({ markers }) при exit 0, reject при non-zero/aborted.
+//   markers — масив { tag, data } розпарсених @@TAG@@-рядків.
 function spawnTask(ctx, scriptPath, args = [], opts = {}) {
   return new Promise((resolve, reject) => {
     const abs = path.resolve(scriptPath);
@@ -29,10 +35,18 @@ function spawnTask(ctx, scriptPath, args = [], opts = {}) {
       else ctx.signal.addEventListener("abort", onAbort, { once: true });
     }
 
+    const markers = [];
     const onLine = (buf) => {
       const text = buf.toString();
       for (const line of text.split(/\r?\n/)) {
-        if (line.trim()) ctx.log(line);
+        if (!line.trim()) continue;
+        const m = line.match(MARKER_RE);
+        if (m) {
+          try { markers.push({ tag: m[1], data: JSON.parse(m[2]) }); }
+          catch (_) { ctx.log(line); } // невалідний JSON — лишаємо в логах для діагностики
+          continue; // маркер не дублюємо в лог
+        }
+        ctx.log(line);
       }
     };
     child.stdout.on("data", onLine);
@@ -42,7 +56,7 @@ function spawnTask(ctx, scriptPath, args = [], opts = {}) {
       if (ctx.clearChild) ctx.clearChild(child);
       if (ctx.signal) ctx.signal.removeEventListener("abort", onAbort);
       if (aborted || signal) return reject(new Error(`Скасовано (signal=${signal || "SIGTERM"})`));
-      if (code === 0) resolve();
+      if (code === 0) resolve({ markers });
       else reject(new Error(`process exited with code ${code}`));
     });
   });

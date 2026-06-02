@@ -81,14 +81,25 @@ class JobRunner {
     this.controllers.set(jobId, ctrl);
     this.children.set(jobId, new Set());
 
+    // Київський час для префіксів логу — щоб у логах було видно, КОЛИ що сталось.
+    const TZ = process.env.UI_TZ || "Europe/Kyiv";
+    const stamp = () => {
+      try { return new Date().toLocaleTimeString("uk-UA", { timeZone: TZ, hour12: false }); }
+      catch (_) { return ""; }
+    };
+
     setImmediate(async () => {
+      const startedMs = Date.now();
       try {
         await this.repo.start(jobId);
         const ctx = {
           jobId,
           signal: ctrl.signal,
+          // Кожен рядок логу префіксуємо часом [HH:MM:SS] (Київ). Багаторядкові
+          // блоки (з \n) штампуємо лише першим рядком, щоб не засмічувати.
           log: async (line) => {
-            const text = typeof line === "string" ? line : JSON.stringify(line);
+            const raw = typeof line === "string" ? line : JSON.stringify(line);
+            const text = `[${stamp()}] ${raw}`;
             await this.repo.appendLog(jobId, text);
             emitter.emit("line", text);
           },
@@ -100,22 +111,34 @@ class JobRunner {
             this.children.get(jobId)?.delete(child);
             try { await this.repo.setPid(jobId, null); } catch (_) {}
           },
+          // Зберегти зведення (diff) у БД і повідомити SSE-підписників, щоб
+          // картка-зведення з'явилась без перезавантаження сторінки.
+          setSummary: async (summary) => {
+            try { await this.repo.setSummary(jobId, summary); } catch (_) {}
+            emitter.emit("summary", summary);
+          },
         };
+        // Стартовий банер — видно тип задачі й коли стартувала.
+        await ctx.log(`▶ Старт задачі #${jobId} (${kind})`);
         await fn(ctx);
+        const secs = ((Date.now() - startedMs) / 1000).toFixed(1);
         if (ctrl.signal.aborted) {
+          await ctx.log(`⊘ Скасовано за ${secs}с`);
           await this.repo.finishCancelled(jobId);
           emitter.emit("done", { status: "cancelled" });
         } else {
+          await ctx.log(`✔ Завершено успішно за ${secs}с`);
           await this.repo.finishDone(jobId);
           emitter.emit("done", { status: "done" });
         }
       } catch (e) {
+        const secs = ((Date.now() - startedMs) / 1000).toFixed(1);
         if (ctrl.signal.aborted) {
-          await this.repo.appendLog(jobId, `⊘ Скасовано: ${e.message}`);
+          await this.repo.appendLog(jobId, `[${stamp()}] ⊘ Скасовано за ${secs}с: ${e.message}`);
           await this.repo.finishCancelled(jobId);
           emitter.emit("done", { status: "cancelled" });
         } else {
-          await this.repo.appendLog(jobId, `✗ FATAL: ${e.message}`);
+          await this.repo.appendLog(jobId, `[${stamp()}] ✗ ПОМИЛКА за ${secs}с: ${e.message}`);
           await this.repo.finishFailed(jobId, e.message);
           emitter.emit("done", { status: "failed", error: e.message });
         }

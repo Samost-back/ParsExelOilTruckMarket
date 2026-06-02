@@ -21,6 +21,11 @@ const path = require("path");
 const sharp = require("sharp");
 const { Client } = require("pg");
 const CFG = require("./template-config.cjs");
+const { buildPlatesSvg } = require("./plates.cjs");
+const PLATE_POS = require("./plate-positions.cjs");
+
+// Об'єм (208 л) йде з комбінезоном — як COVERALL_FROM_VOLUME у парсері.
+const COVERALL_VOLUME = 208;
 
 const COUNTRY_FALLBACK = "Німеччина";
 const TEMPLATES_DIR = path.resolve(__dirname, "..", "browser-tool", "templates");
@@ -28,15 +33,20 @@ const OUTPUT_ROOT = path.resolve(__dirname, "..", "..", "..", "photos_storage", 
 
 // === допоміжне ===
 
-function resolveMapping(articul) {
-  if (!articul || articul.length < 3) return null;
-  const last3 = articul.slice(-3);
-  if (articul.charAt(0) === "7" && CFG.KG_PREFIX7_MAP[last3]) {
-    return { unit: "kg", value: CFG.KG_PREFIX7_MAP[last3] };
-  }
-  if (CFG.KG_MAP[last3]) return { unit: "kg", value: CFG.KG_MAP[last3] };
-  if (CFG.LITERS_MAP[last3]) return { unit: "l", value: CFG.LITERS_MAP[last3] };
-  return null;
+// Об'єм/одиниця визначаються ЗА ДАНИМИ БД (packaging_volume + name_type_oil),
+// а не за артикулом — це джерело правди й однаково надійне для всіх інтеграцій.
+// Одиниця: «мастило» → кг; решта типів → л. value у форматі шаблонів ("20 л").
+function resolveMappingFromDb(packagingVolume, nameTypeOil) {
+  if (packagingVolume == null) return null;
+  const n = Number(packagingVolume);
+  if (!Number.isFinite(n)) return null;
+  const isKg = /мастил/i.test(String(nameTypeOil || ""));
+  const unit = isKg ? "kg" : "l";
+  // Нормалізуємо число до вигляду в TEMPLATES.value: цілі без дробу (20, 208),
+  // дробові з крапкою (1.5, 0.4).
+  const num = Number.isInteger(n) ? String(n) : String(n).replace(",", ".");
+  const value = isKg ? `${num} кг` : `${num} л`;
+  return { unit, value };
 }
 
 function findTemplateName(mapping) {
@@ -46,9 +56,9 @@ function findTemplateName(mapping) {
   return null;
 }
 
-async function findTemplateFile(name) {
+async function findTemplateFile(name, suffix = "") {
   for (const ext of CFG.TEMPLATE_EXTS) {
-    const p = path.join(TEMPLATES_DIR, `${name}.${ext}`);
+    const p = path.join(TEMPLATES_DIR, `${name}${suffix}.${ext}`);
     if (fs.existsSync(p)) return p;
   }
   return null;
@@ -104,15 +114,17 @@ function escapeXml(s) {
   }[c]));
 }
 
-async function processOne({ srcPath, articul, country, outDir }) {
-  const mapping = resolveMapping(articul);
+async function processOne({ srcPath, articul, packagingVolume, nameTypeOil, country, outDir, noCountry = false }) {
+  const mapping = resolveMappingFromDb(packagingVolume, nameTypeOil);
   if (!mapping) {
-    return { status: "skipped", error: `немає мапінгу для last3="${articul.slice(-3)}"` };
+    return { status: "skipped", error: `немає об'єму в БД (packaging_volume=${packagingVolume})` };
   }
   const tplName = findTemplateName(mapping);
   if (!tplName) {
     return { status: "skipped", error: `немає шаблона для ${mapping.unit}=${mapping.value}` };
   }
+  // Беремо базовий шаблон; плашки (об'єм/комбінезон/країна) перемальовуємо
+  // вектором поверх (чітко, без розмиття), тож _nc-шаблони більше не потрібні.
   const tplFile = await findTemplateFile(tplName);
   if (!tplFile) {
     return { status: "skipped", error: `файл шаблона ${tplName}.{${CFG.TEMPLATE_EXTS.join("|")}} відсутній` };
@@ -160,52 +172,54 @@ async function processOne({ srcPath, articul, country, outDir }) {
       `<rect x="${pos.left}" y="${pos.top}" width="${pos.width}" height="${pos.height}" fill="#ffffff"/>` +
     `</svg>`, "utf-8");
 
-  const countryShiftX = CFG.COUNTRY_TEXT.offsetX || 0;
-  const countryShiftY = CFG.COUNTRY_TEXT.offsetY || 0;
-  const countryLeft = pos.country.left + countryShiftX;
-  const fontSize = Math.max(6, pos.country.height * (CFG.COUNTRY_TEXT.heightRatio || 0.78));
-  const ty = pos.country.top + pos.country.height / 2 + countryShiftY;
+  // Векторні плашки справа: замальовуємо весь блок растрових плашок білим і
+  // малюємо чіткі SVG-плашки. Manager (noCountry) — ТІЛЬКИ літраж (без
+  // комбінезона й країни). Інші — об'єм + комбінезон (208 л) + країна.
+  // Послідовність зверху вниз: [Об'єм] → [Комбінезон?] → [Країна?].
+  const pp = PLATE_POS[tplName];
+  let platesSvg = null;
+  let plateCover = null;
+  if (pp) {
+    const gap = Math.round(pp.height * 0.45);
+    const step = pp.height + gap;
+    const volLabel = mapping.unit === "kg"
+      ? `${String(mapping.value).replace(/\s*кг$/i, "")} кг`
+      : `${String(mapping.value).replace(/\s*л$/i, "")} л`;
+    const hasCoverall = !noCountry && Math.round(Number(packagingVolume)) === COVERALL_VOLUME;
+    const showCountry = !noCountry;
 
-  // Прапор країни — три (або скільки задано) горизонтальні смуги зліва від тексту.
-  // Перекриває чорний кружок-плейсхолдер на оригінальному шаблоні.
-  let flagSvg = "";
-  const flagCfg = CFG.FLAG;
-  const stripes = CFG.COUNTRY_FLAGS && CFG.COUNTRY_FLAGS[country];
-  if (flagCfg && flagCfg.enabled && stripes && stripes.length) {
-    const fh = Math.round(pos.country.height * (flagCfg.heightRatio || 1));
-    const fw = Math.round(fh * (flagCfg.aspectRatio || 5 / 3));
-    const fx = countryLeft - fw - (flagCfg.gap || 4);
-    const fy = Math.round(pos.country.top + (pos.country.height - fh) / 2);
-    const stripeH = fh / stripes.length;
-    let rects = "";
-    for (let i = 0; i < stripes.length; i++) {
-      rects += `<rect x="${fx}" y="${(fy + i * stripeH).toFixed(2)}" ` +
-               `width="${fw}" height="${stripeH.toFixed(2)}" fill="${stripes[i]}"/>`;
-    }
-    if (flagCfg.border && flagCfg.border.width > 0) {
-      rects += `<rect x="${fx}" y="${fy}" width="${fw}" height="${fh}" ` +
-               `fill="none" stroke="${flagCfg.border.color}" stroke-width="${flagCfg.border.width}"/>`;
-    }
-    flagSvg = rects;
+    const items = [{ label: volLabel, rect: { ...pp } }];
+    let nextTop = pp.top + step;
+    if (hasCoverall) { items.push({ label: "Комбінезон", rect: { ...pp, top: nextTop } }); nextTop += step; }
+    if (showCountry) { items.push({ label: country, rect: { ...pp, top: nextTop } }); }
+
+    platesSvg = buildPlatesSvg(canvasW, canvasH, items);
+    // Білий прямокутник, що накриває всю стару зону плашок (з хвостами стрілок зліва).
+    const coverX = Math.max(0, pp.left - Math.round(pp.height * 1.2) - 6);
+    const coverY = Math.max(0, pp.top - 4);
+    const coverW = canvasW - coverX;
+    const coverH = (nextTop + step) - coverY;
+    plateCover = Buffer.from(
+      `<svg xmlns="http://www.w3.org/2000/svg" width="${canvasW}" height="${canvasH}">` +
+        `<rect x="${coverX}" y="${coverY}" width="${coverW}" height="${coverH}" fill="#ffffff"/>` +
+      `</svg>`, "utf-8");
   }
 
-  const svgText = Buffer.from(
-    `<svg xmlns="http://www.w3.org/2000/svg" width="${canvasW}" height="${canvasH}">` +
-      flagSvg +
-      `<text x="${countryLeft}" y="${ty}" ` +
-      `font-family="${CFG.COUNTRY_TEXT.fontFamily}" font-weight="${CFG.COUNTRY_TEXT.fontWeight}" ` +
-      `font-size="${fontSize}" fill="${CFG.COUNTRY_TEXT.color}" ` +
-      `text-anchor="start" dominant-baseline="middle">${escapeXml(country)}</text>` +
-    `</svg>`, "utf-8");
+  // Шари: шаблон → білий під бочкою → бочка → (білий під плашками) → SVG-плашки.
+  const layers = [
+    { input: svgRect, top: 0, left: 0 },
+    { input: fitted.data, top: offsetY, left: offsetX },
+  ];
+  if (plateCover) layers.push({ input: plateCover, top: 0, left: 0 });
+  if (platesSvg) layers.push({ input: platesSvg, top: 0, left: 0 });
 
   try {
     await sharp(tplFile)
-      .composite([
-        { input: svgRect, top: 0, left: 0 },
-        { input: fitted.data, top: offsetY, left: offsetX },
-        { input: svgText, top: 0, left: 0 },
-      ])
-      .jpeg({ quality: CFG.JPG_QUALITY })
+      .composite(layers)
+      // chromaSubsampling 4:4:4 — без зменшення кольорової роздільності, інакше
+      // кольорові написи (літраж/комбінезон) розмиваються. mozjpeg — кращий за
+      // якістю при тому ж розмірі.
+      .jpeg({ quality: CFG.JPG_QUALITY, chromaSubsampling: "4:4:4", mozjpeg: true })
       .toFile(outPath);
   } catch (e) {
     return { status: "failed", error: `composite: ${e.message}` };
@@ -235,10 +249,13 @@ async function processOne({ srcPath, articul, country, outDir }) {
 
   const sql = `
     SELECT i.id, i.oils_id, i.file_path, o.articul, o.name_type_oil, o.name,
-           c.country AS company_country
+           o.packaging_volume,
+           c.country AS company_country,
+           integ.code AS integration_code
       FROM oils_images i
       JOIN olivs o ON o.id = i.oils_id
       JOIN company_olivs c ON c.id = o.company_id
+ LEFT JOIN integrations integ ON integ.id = o.integration_id
      ${reprocess ? "" : "WHERE i.processed_status IS NULL OR i.processed_status = 'pending' OR i.processed_status = 'failed'"}
   ORDER BY i.id
      ${LIMIT ? `LIMIT ${LIMIT}` : ""}
@@ -256,7 +273,11 @@ async function processOne({ srcPath, articul, country, outDir }) {
       res = await processOne({
         srcPath: r.file_path,
         articul: r.articul,
+        packagingVolume: r.packaging_volume,
+        nameTypeOil: r.name_type_oil,
         country: r.company_country || COUNTRY_FALLBACK,
+        // Manager — фото без назви країни на бочці.
+        noCountry: r.integration_code === "ManagerIntegration",
         outDir: OUTPUT_ROOT,
       });
     } catch (e) {
@@ -310,6 +331,16 @@ async function processOne({ srcPath, articul, country, outDir }) {
     }
     if (errors.length > 20) console.log(`  ... та ще ${errors.length - 20}`);
   }
+
+  // Машиночитаний маркер для web job (картка-зведення). reprocess=false →
+  // оброблено лише НОВІ/невдалі фото (інкрементально), тож done = додані/змінені.
+  console.log("@@PHOTODIFF@@ " + JSON.stringify({
+    candidates: rows.length,
+    done: stats.done,
+    skipped: stats.skipped,
+    failed: stats.failed,
+    reprocess,
+  }));
 
   await db.end();
   console.log("\n✓ Готово");

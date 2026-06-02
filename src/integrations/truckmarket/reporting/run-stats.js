@@ -5,7 +5,7 @@ class RunStats {
   constructor() {
     this.buckets = {
       created: [], blacklist: [], no_integration: [],
-      mapping_error: [], api_error: [],
+      mapping_error: [], api_error: [], no_photos: [],
     };
   }
 
@@ -13,6 +13,7 @@ class RunStats {
   addNoIntegration(row)  { this.buckets.no_integration.push(this._slim(row)); }
   addMappingError(row,r) { this.buckets.mapping_error.push({ ...this._slim(row), reason: r }); }
   addApiError(row,r)     { this.buckets.api_error.push({ ...this._slim(row), reason: r }); }
+  addNoPhotos(row)       { this.buckets.no_photos.push(this._slim(row)); }
   addCreated(row, listingId, photos) {
     this.buckets.created.push({
       ...this._slim(row),
@@ -31,6 +32,7 @@ class RunStats {
       { status: "✓ created",          count: this.buckets.created.length },
       { status: "⊘ blacklist",        count: this.buckets.blacklist.length },
       { status: "⊘ no_integration",   count: this.buckets.no_integration.length },
+      { status: "⊘ no_photos",        count: this.buckets.no_photos.length },
       { status: "✗ mapping_error",    count: this.buckets.mapping_error.length },
       { status: "✗ api_error",        count: this.buckets.api_error.length },
       { status: "📷 photos uploaded", count: u },
@@ -43,7 +45,7 @@ class RunStats {
     for (const [status, items] of Object.entries(this.buckets)) {
       for (const it of items) {
         const t = it.type || "—";
-        out[t] = out[t] || { created: 0, blacklist: 0, no_integration: 0, mapping_error: 0, api_error: 0 };
+        out[t] = out[t] || { created: 0, blacklist: 0, no_integration: 0, mapping_error: 0, api_error: 0, no_photos: 0 };
         out[t][status]++;
       }
     }

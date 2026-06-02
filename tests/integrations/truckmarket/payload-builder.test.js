@@ -46,7 +46,7 @@ describe("buildListingPayload", () => {
     expect(data.f2).toBe(2);     // SAE = 0W-20
     expect(data.f3).toBe(1);     // SAPS low = false → 1
     expect(data.f22).toBe("226001"); // артикул
-    expect(data.f6).toBe(4);     // об'єм 1 л → id=4 у новій спільній мапі
+    expect(data.f8).toBe(4);     // об'єм 1 л → id=4, поле моторної = f8 (d[8])
     expect(data.f7).toBe(14);    // Eurolub
     expect(data.f5).toBe(1 | 2); // BMW + Mercedes-Benz
     expect(warnings).toEqual([]);

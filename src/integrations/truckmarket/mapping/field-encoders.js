@@ -39,9 +39,10 @@ const FIELD_ENCODERS = {
   "API":                    { kind: "text",   read: (r) => joinIfArray(r.api) },
   "Стандарт DOT":           { kind: "text",   read: (r) => r.dot },
   "Марки авто":             { kind: "bitmask", read: (r) => r.car_brand },
-  // Бренд → береться з company_olivs.name_company через JOIN
-  // (див. SELECT_PENDING у oils-repo.js). findBrandId() — case-insensitive.
-  "Бренд":                  { kind: "brand",  read: (r) => r.company_name },
+  // Бренд → джерело правди olivs.brand (його ставить інтеграція: для EUROLUB
+  // це 'EUROLUB' з назви). Якщо порожній — fallback на company_olivs.name_company.
+  // findBrandId() — case-insensitive.
+  "Бренд":                  { kind: "brand",  read: (r) => r.brand || r.company_name },
 };
 
 function encode(fieldName, fieldCode, row, optionsByField, warnings) {

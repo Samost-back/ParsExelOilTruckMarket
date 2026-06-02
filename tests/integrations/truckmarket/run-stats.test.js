@@ -34,6 +34,20 @@ describe("RunStats", () => {
     expect(t.find(r => r.status === "✗ api_error").count).toBe(1);
   });
 
+  it("addNoPhotos: окремий лічильник 'no_photos'", () => {
+    const s = new RunStats();
+    s.addNoPhotos(row(1));
+    s.addNoPhotos(row(2, "трансмісійне оливо"));
+    const t = s.summaryTable();
+    expect(t.find(r => r.status === "⊘ no_photos").count).toBe(2);
+    // не плутається з created
+    expect(t.find(r => r.status === "✓ created").count).toBe(0);
+    // byTypeTable рахує по типах без падіння
+    const bt = s.byTypeTable();
+    expect(bt["моторне оливо"].no_photos).toBe(1);
+    expect(bt["трансмісійне оливо"].no_photos).toBe(1);
+  });
+
   it("byTypeTable: групує по name_type_oil", () => {
     const s = new RunStats();
     s.addCreated(row(1, "моторне оливо"), 1, { uploaded: 0, failed: [] });

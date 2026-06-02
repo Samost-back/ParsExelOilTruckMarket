@@ -1,0 +1,85 @@
+<%
+  // Партіал одного рядка таблиці олив. Використовується і в списку (oils.ejs),
+  // і як HTMX-фрагмент при скасуванні/збереженні редагування.
+  // Очікує: o (рядок з listOils-shape).
+%>
+<tr id="oil-row-<%= o.id %>">
+  <td class="col-thumb">
+    <% if (o.img_total > 0) { %>
+      <a href="/oils/<%= o.id %>/images" class="oil-thumb-link">
+        <img src="/oils/<%= o.id %>/image/first" loading="lazy" alt="" class="oil-thumb-img" />
+      </a>
+    <% } else { %>
+      <div class="oil-thumb-empty">—</div>
+    <% } %>
+  </td>
+  <td><span class="kind-pill"><%= o.name_type_oil %></span></td>
+  <td class="col-company"><%= o.company_name %></td>
+  <td><a href="/oils/<%= o.id %>/images" class="oil-name"><%= o.name %></a></td>
+  <td><%= o.brand || "—" %></td>
+  <td class="col-city"><%= o.city || "—" %></td>
+  <td class="col-integration">
+    <% if (o.integration_name) { %>
+      <span class="kind-pill"><%= o.integration_name %></span>
+    <% } else { %>
+      <span class="text-muted">—</span>
+    <% } %>
+  </td>
+  <td class="col-articul"><code><%= o.articul %></code></td>
+  <td class="col-volume"><%= o.packaging_volume %> л</td>
+  <td>
+    <%# Швидке inline-редагування ціни %>
+    <form class="price-quick" hx-post="/oils/<%= o.id %>/price"
+          hx-target="#oil-row-<%= o.id %>" hx-swap="outerHTML">
+      <input type="number" name="price" value="<%= o.price != null ? o.price : '' %>"
+             min="0" step="1" aria-label="Ціна" />
+      <button type="submit" class="act act-success" title="Зберегти ціну">₴</button>
+      <span class="htmx-indicator">…</span>
+    </form>
+  </td>
+  <td class="col-photo">
+    <% if (o.img_total > 0) { %>
+      <span class="kind-pill"><%= o.img_done %>/<%= o.img_total %></span>
+    <% } else { %>
+      <span class="text-muted">—</span>
+    <% } %>
+  </td>
+  <td>
+    <% if (o.truck_status === 'done') { %>
+      <span class="badge badge-done">#<%= o.truck_listing_id %></span>
+    <% } else if (o.truck_status === 'outdated') { %>
+      <span class="badge badge-warning" title="Ціна змінилась — оголошення застаріле">⟳ застаріло #<%= o.truck_listing_id %></span>
+    <% } else if (o.truck_status === 'in_progress') { %>
+      <span class="badge badge-in_progress">в роботі</span>
+    <% } else if (o.truck_status === 'failed') { %>
+      <span class="badge badge-failed" title="<%= o.truck_error || '' %>">помилка</span>
+    <% } else { %>
+      <span class="badge badge-pending">очікує</span>
+    <% } %>
+  </td>
+  <td class="actions-cell col-actions">
+    <div class="act-group">
+      <button type="button" class="act"
+              hx-get="/oils/<%= o.id %>/edit-row" hx-target="#oil-row-<%= o.id %>" hx-swap="outerHTML"
+              title="Редагувати">✎</button>
+      <% if (o.truck_status === 'done') { %>
+        <form hx-post="/oils/<%= o.id %>/unpublish" hx-swap="none"
+              hx-confirm="Видалити #<%= o.truck_listing_id %> з TruckMarket?">
+          <button type="submit" class="act act-danger" title="Зняти з TM">⊘</button>
+        </form>
+      <% } else if (o.truck_status === 'outdated') { %>
+        <form hx-post="/oils/<%= o.id %>/sync-tm" hx-swap="none">
+          <button type="submit" class="act act-warning" title="Оновити на TM">⟳</button>
+        </form>
+      <% } else if (o.truck_status !== 'in_progress') { %>
+        <form hx-post="/oils/<%= o.id %>/publish" hx-swap="none">
+          <button type="submit" class="act act-success" title="Опублікувати на TM">↑</button>
+        </form>
+      <% } %>
+      <button type="button" class="act act-danger"
+              hx-delete="/oils/<%= o.id %>" hx-target="#oil-row-<%= o.id %>" hx-swap="outerHTML"
+              hx-confirm="Видалити оливу «<%= o.name %>» з БД? Дію не можна скасувати."
+              title="Видалити з БД">🗑</button>
+    </div>
+  </td>
+</tr>

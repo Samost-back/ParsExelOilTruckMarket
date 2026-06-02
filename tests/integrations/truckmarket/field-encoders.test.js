@@ -102,6 +102,21 @@ describe("encode (field-encoders)", () => {
     expect(r).toBe(14);
   });
 
+  it("brand kind: olivs.brand має пріоритет над company_name", () => {
+    const warnings = [];
+    // brand з інтеграції ('EUROLUB') резолвиться, навіть якщо company інша
+    const r = encode("Бренд", "f7",
+      { brand: "EUROLUB", company_name: "NoSuchCompany" }, optionsByField, warnings);
+    expect(r).toBe(14);
+  });
+
+  it("brand kind: fallback на company_name коли brand порожній", () => {
+    const warnings = [];
+    const r = encode("Бренд", "f7",
+      { brand: null, company_name: "EUROLUB" }, optionsByField, warnings);
+    expect(r).toBe(14);
+  });
+
   it("brand kind: не знайдено → null + warning", () => {
     const warnings = [];
     const r = encode("Бренд", "f7", { company_name: "NoSuchCompany" }, optionsByField, warnings);

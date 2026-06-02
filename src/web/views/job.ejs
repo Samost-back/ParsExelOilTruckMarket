@@ -1,11 +1,11 @@
 <div class="page-header">
   <div>
     <a href="/jobs" class="btn-link breadcrumb-back">← Усі задачі</a>
-    <h1>Job #<%= job.id %> — <%= job.kind %></h1>
+    <h1>Задача #<%= job.id %> — <%= jobKindLabel(job.kind) %></h1>
   </div>
   <% if (canCancel) { %>
     <form method="post" action="/jobs/<%= job.id %>/cancel" id="cancelForm"
-          onsubmit="return confirm('Зупинити цю задачу?');">
+          data-confirm="Зупинити цю задачу?">
       <button type="submit" class="btn-danger">⊘ Зупинити</button>
     </form>
   <% } %>
@@ -13,13 +13,13 @@
 
 <section class="card">
   <div class="job-meta">
-    <div><strong>Статус:</strong> <span id="job-status" class="badge badge-<%= job.status %>"><%= job.status %></span></div>
-    <div><strong>Створено:</strong> <%= new Date(job.created_at).toLocaleString("uk-UA") %></div>
+    <div><strong>Статус:</strong> <span id="job-status" class="badge badge-<%= job.status %>"><%= jobStatusLabel(job.status) %></span></div>
+    <div><strong>Створено:</strong> <%= fmtDate(job.created_at) %></div>
     <% if (job.started_at) { %>
-      <div><strong>Стартував:</strong> <%= new Date(job.started_at).toLocaleString("uk-UA") %></div>
+      <div><strong>Стартував:</strong> <%= fmtDate(job.started_at) %></div>
     <% } %>
     <% if (job.finished_at) { %>
-      <div><strong>Завершився:</strong> <%= new Date(job.finished_at).toLocaleString("uk-UA") %></div>
+      <div><strong>Завершився:</strong> <%= fmtDate(job.finished_at) %></div>
     <% } %>
   </div>
   <% if (job.error) { %>
@@ -27,24 +27,104 @@
   <% } %>
 </section>
 
+<%
+  // Зведення (diff) — з params.summary. Рендеримо картку, якщо воно є.
+  let summary = null;
+  try {
+    const p = typeof job.params === "string" ? JSON.parse(job.params) : job.params;
+    summary = p && p.summary ? p.summary : null;
+  } catch (_) {}
+  const STEP_LABELS = {
+    "parse": "Парсинг прайсу",
+    "company-meta": "Метадані компанії",
+    "import-photos": "Імпорт фото",
+    "process-photos": "Обробка фото",
+  };
+  const STEP_ICON = { pending: "○", running: "▸", done: "✓", failed: "✗" };
+%>
+<section class="card" id="summary-card" <%= summary ? "" : 'style="display:none"' %>>
+  <h2>Зведення</h2>
+  <div id="summary-body"><%- include("_job-summary", { summary, STEP_LABELS, STEP_ICON, importStepLabel, stepStatusLabel }) %></div>
+</section>
+
 <section class="card">
   <h2>Лог</h2>
   <pre id="job-log" class="job-log"><%= job.log || "" %></pre>
 </section>
+
+<script>
+  // Клієнтський рендер зведення — дзеркало _job-summary.ejs. Викликається
+  // на кожну SSE-подію 'summary', щоб картка оновлювалась наживо без reload.
+  const STEP_LABELS = { "parse": "Парсинг прайсу", "company-meta": "Метадані компанії", "import-photos": "Імпорт фото", "process-photos": "Обробка фото" };
+  const STEP_ICON = { pending: "○", running: "▸", done: "✓", failed: "✗" };
+  const STEP_STATUS = { pending: "очікує", running: "виконується", done: "готово", failed: "помилка" };
+  const JOB_STATUS = { pending: "очікує", running: "виконується", done: "готово", failed: "помилка", cancelled: "скасовано" };
+  function esc(s) { const d = document.createElement("div"); d.textContent = s == null ? "" : String(s); return d.innerHTML; }
+  function statBlock(num, lbl, cls) {
+    return '<div class="stat"><span class="stat-num ' + (cls || "") + '">' + esc(num) + '</span><span class="stat-lbl">' + esc(lbl) + '</span></div>';
+  }
+  function renderSummary(s) {
+    if (!s) return "";
+    let h = '<div class="summary-meta">';
+    h += '<span class="chip">Режим: <strong>' + esc(s.mode) + '</strong></span>';
+    if (s.integration) h += '<span class="chip">Інтеграція: <strong>' + esc(s.integration) + '</strong></span>';
+    if (s.company) h += '<span class="chip">Компанія: <strong>' + esc(s.company) + '</strong></span>';
+    h += '</div><ul class="summary-steps">';
+    for (const st of (s.steps || [])) {
+      h += '<li class="step step-' + esc(st.status) + '"><span class="step-icon">' + (STEP_ICON[st.status] || "○") +
+           '</span><span class="step-name">' + esc(STEP_LABELS[st.name] || st.name) + '</span><span class="step-status">' + esc(STEP_STATUS[st.status] || st.status) + '</span></li>';
+    }
+    h += '</ul>';
+    const d = s.diff;
+    if (d) {
+      h += '<div class="summary-section"><h3>Оливи / ціни</h3><div class="stat-grid">';
+      h += statBlock(d.inserted, "створено", "stat-new") + statBlock(d.updated, "оновлено") +
+           statBlock(d.pricesSet, "зміни ціни", "stat-price") + statBlock(d.priceUnchanged, "ціна без змін", "stat-muted");
+      if (d.outdated) h += statBlock(d.outdated, "треба оновити на TM", "stat-warn");
+      h += '</div></div>';
+    }
+    const pl = s.photoLink;
+    if (pl) {
+      h += '<div class="summary-section"><h3>Фото — прив\'язка</h3><div class="stat-grid">';
+      h += statBlock(pl.files, "файлів") + statBlock(pl.linked, "нових зв'язків", "stat-new") + statBlock(pl.dup, "вже були", "stat-muted");
+      if (pl.unmatched) h += statBlock(pl.unmatched, "без оливи", "stat-warn");
+      if (pl.oilsWithoutPhoto != null) h += statBlock(pl.oilsWithoutPhoto, "олив без фото", "stat-muted");
+      h += '</div></div>';
+    }
+    const pp = s.photoProcess;
+    if (pp) {
+      h += '<div class="summary-section"><h3>Фото — обробка</h3><div class="stat-grid">';
+      h += statBlock(pp.done, "оброблено", "stat-new");
+      if (pp.skipped) h += statBlock(pp.skipped, "пропущено", "stat-muted");
+      if (pp.failed) h += statBlock(pp.failed, "помилок", "stat-warn");
+      h += '</div></div>';
+    }
+    return h;
+  }
+</script>
 
 <% if (job.status === "running" || job.status === "pending") { %>
 <script>
   const status = document.getElementById("job-status");
   const logEl = document.getElementById("job-log");
   const cancelForm = document.getElementById("cancelForm");
+  const summaryCard = document.getElementById("summary-card");
+  const summaryBody = document.getElementById("summary-body");
   const evt = new EventSource("/jobs/<%= job.id %>/stream");
   evt.addEventListener("line", (e) => {
     logEl.textContent += e.data + "\n";
     logEl.scrollTop = logEl.scrollHeight;
   });
+  evt.addEventListener("summary", (e) => {
+    try {
+      const s = JSON.parse(e.data);
+      summaryBody.innerHTML = renderSummary(s);
+      summaryCard.style.display = "";
+    } catch (_) {}
+  });
   evt.addEventListener("done", (e) => {
     const data = JSON.parse(e.data);
-    status.textContent = data.status;
+    status.textContent = JOB_STATUS[data.status] || data.status;
     status.className = "badge badge-" + data.status;
     if (cancelForm) cancelForm.style.display = "none";
     evt.close();

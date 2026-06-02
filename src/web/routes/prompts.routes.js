@@ -1,7 +1,38 @@
+const path = require("path");
+const ejs = require("ejs");
 const { PromptsRepo } = require("../../integrations/openai/prompts-repo");
+const { DescriptionGenerator } = require("../../integrations/openai/description-generator");
+const { OpenAIClient } = require("../../integrations/openai/openai-client");
+
+const VIEWS_DIR = path.join(__dirname, "..", "views");
+// renderFile повертає Promise — викликаємо з await на місці використання.
+const renderFragment = (name, data) =>
+  ejs.renderFile(path.join(VIEWS_DIR, name), data, { async: false });
+
+// Повний рядок оливо для симуляції (поля, які споживає DescriptionGenerator).
+async function fetchOilForSim(db, oilsId) {
+  const r = await db.query(`
+    SELECT o.id, o.name_type_oil, o.name, o.type_oil, o.viscosity_sae,
+           o.low_level_saps, o.packaging_volume, o.articul, o.acea, o.api,
+           o.manufacturers_tolerances, o.car_brand, o.quantity,
+           o.iso_vg_viscosity_grade, o.color_liquid, o.dot, o.brand,
+           c.name_company AS company_name
+      FROM olivs o JOIN company_olivs c ON c.id = o.company_id
+     WHERE o.id = $1`, [oilsId]);
+  return r.rows[0] || null;
+}
 
 async function promptsRoutes(fastify, { db }) {
   const repo = new PromptsRepo(db);
+
+  // Список олив для селектора симулятора (id + людська мітка).
+  async function oilsForSelect() {
+    const r = await db.query(`
+      SELECT o.id, o.name, o.articul, c.name_company
+        FROM olivs o JOIN company_olivs c ON c.id = o.company_id
+    ORDER BY o.id DESC LIMIT 500`);
+    return r.rows;
+  }
 
   // === Список + новий ===
   fastify.get("/prompts", { preHandler: fastify.requireAuth }, async (req, reply) => {
@@ -23,6 +54,7 @@ async function promptsRoutes(fastify, { db }) {
       active: "prompts",
       prompt: { id: null, name: "", body: "", is_default: false },
       mode: "create",
+      oils: await oilsForSelect(),
     });
   });
 
@@ -54,7 +86,36 @@ async function promptsRoutes(fastify, { db }) {
       active: "prompts",
       prompt,
       mode: "edit",
+      oils: await oilsForSelect(),
     });
+  });
+
+  // === AI-симулятор: попередній перегляд опису без збереження в БД ===
+  // Приймає oils_id + body (текст промпту з редактора). Будує генератор з ЦИМ
+  // промптом (не з БД), генерує опис і повертає HTML-фрагмент. Нічого не пише.
+  fastify.post("/prompts/simulate", { preHandler: fastify.requireAuth }, async (req, reply) => {
+    const { oils_id, body } = req.body || {};
+    const id = parseInt(oils_id, 10);
+    const promptBody = (body == null ? "" : String(body)).trim();
+    const send = async (data) =>
+      reply.type("text/html").send(await renderFragment("_prompt-sim-result.ejs", data));
+
+    if (!id) return send({ ok: false, error: "Виберіть оливу" });
+    if (!promptBody) return send({ ok: false, error: "Текст промпту порожній" });
+    if (!process.env.OPENAI_API_KEY) {
+      return send({ ok: false, error: "OPENAI_API_KEY не налаштований — симуляція недоступна" });
+    }
+    const row = await fetchOilForSim(db, id);
+    if (!row) return send({ ok: false, error: "Оливу не знайдено" });
+
+    try {
+      const client = new OpenAIClient();
+      const generator = new DescriptionGenerator({ client, systemPrompt: promptBody });
+      const text = await generator.generateForOil(row);
+      return send({ ok: true, text, oilName: row.name });
+    } catch (e) {
+      return send({ ok: false, error: `Помилка генерації: ${e.message}` });
+    }
   });
 
   // === Оновлення ===

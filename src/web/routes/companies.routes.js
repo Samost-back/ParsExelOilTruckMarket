@@ -79,6 +79,17 @@ async function findOilImages(db, oilsId) {
   return r.rows;
 }
 
+// Історія цін оливо: усі версії з oils_price, найновіша першою.
+// valid_to IS NULL = поточна ціна.
+async function findPriceHistory(db, oilsId) {
+  const r = await db.query(`
+    SELECT price, valid_from, valid_to
+      FROM oils_price
+     WHERE oils_id = $1
+  ORDER BY valid_from DESC, id DESC`, [oilsId]);
+  return r.rows;
+}
+
 // Безпечне видалення файла (ігнорує помилки доступу).
 function safeUnlink(p) {
   if (!p) return;
@@ -136,22 +147,51 @@ async function companiesRoutes(fastify, { db, runner }) {
     });
   });
 
+  // === Редагування компанії (назва + країна) ===
+  fastify.post("/companies/:id/edit", { preHandler: fastify.requireAuth }, async (req, reply) => {
+    const id = parseInt(req.params.id, 10);
+    const company = await findCompany(db, id);
+    if (!company) return reply.code(404).send("Не знайдено");
+    const name = ((req.body || {}).name || "").trim();
+    const countryRaw = ((req.body || {}).country || "").trim();
+    const country = countryRaw === "" ? null : countryRaw;
+    const cityRaw = ((req.body || {}).city || "").trim();
+    const city = cityRaw === "" ? null : cityRaw;
+    if (!name) return reply.code(400).send("Назва обов'язкова");
+    try {
+      await db.query(
+        `UPDATE company_olivs SET name_company = $2, country = $3, city = $4 WHERE id = $1`,
+        [id, name, country, city],
+      );
+    } catch (e) {
+      if (/unique/i.test(e.message)) {
+        return reply.code(400).send("Компанія з такою назвою вже існує");
+      }
+      throw e;
+    }
+    return reply.redirect(`/companies/${id}`);
+  });
+
   // === Перегляд фото оливо (модалка) ===
   fastify.get("/oils/:id/images", { preHandler: fastify.requireAuth }, async (req, reply) => {
     const id = parseInt(req.params.id, 10);
     const r = await db.query(
-      `SELECT o.id, o.name, o.articul, c.name_company
+      `SELECT o.id, o.name, o.articul, o.truck_status, o.truck_listing_id, c.name_company
          FROM olivs o JOIN company_olivs c ON c.id = o.company_id
         WHERE o.id = $1`, [id]);
     const oil = r.rows[0];
     if (!oil) return reply.code(404).send("Не знайдено");
-    const images = await findOilImages(db, id);
+    const [images, priceHistory] = await Promise.all([
+      findOilImages(db, id),
+      findPriceHistory(db, id),
+    ]);
     return reply.view("oil-images.ejs", {
       title: `${oil.name}`,
       user: req.user,
       active: "companies",
       oil,
       images,
+      priceHistory,
     });
   });
 

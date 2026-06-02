@@ -9,12 +9,31 @@ pnpm-debug.log*
 .env
 .env.*
 !.env.example
+*.secret
+*.pem
+*.key
+secrets/
+
+# === Input data (prices) — не код, можуть містити чутливі ціни/контакти ===
+Excel/
+*.xls
+*.xlsx
+*.xlsm
+*.ods
 
 # === Photo assets (large binary, regenerable) ===
 photos_storage/
 uploads/
 PRODUCT FOTO-*.zip
 *.zip
+# Вхідні фото товарів (джерело обробки) — не комітимо, лише шаблони в репо.
+# Винятки нижче лишають базові шаблони бочок/каністр у репо.
+*.webp
+*.tif
+*.tiff
+# "no-country" шаблони (*_nc.*) — генеровані, більше не використовуються
+# (перейшли на векторні SVG-плашки). Генератор make-nc-templates.cjs лишається.
+src/photos/browser-tool/templates/*_nc.*
 
 # === Editor / IDE ===
 .vscode/

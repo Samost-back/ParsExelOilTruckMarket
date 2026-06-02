@@ -9,12 +9,41 @@
   </div>
   <div class="page-header-actions">
     <a href="/companies/<%= company.id %>/update-prices" class="btn-primary">🔄 Оновити ціни</a>
+    <a href="#edit-company" class="btn-ghost">✎ Редагувати</a>
     <form method="post" action="/companies/<%= company.id %>/delete"
-          onsubmit="return confirm('Видалити «<%= company.name_company %>»?\n\n• <%= counts.done %> оголошень буде знято з TruckMarket\n• <%= counts.total %> олив + усі фото будуть видалені з БД\n\nВідновити неможливо.');">
+          data-confirm="Видалити «<%= company.name_company %>»?&#10;&#10;• <%= counts.done %> оголошень буде знято з TruckMarket&#10;• <%= counts.total %> олив + усі фото будуть видалені з БД&#10;&#10;Відновити неможливо.">
       <button type="submit" class="btn-danger">⊘ Видалити компанію</button>
     </form>
   </div>
 </div>
+
+<details class="card edit-company-card" id="edit-company">
+  <summary>✎ Редагувати компанію</summary>
+  <form method="post" action="/companies/<%= company.id %>/edit" class="form">
+    <div class="form-row">
+      <label class="field">
+        <span class="field-label">Назва компанії <span class="req">*</span></span>
+        <input type="text" name="name" required value="<%= company.name_company %>" autocomplete="off" />
+      </label>
+      <label class="field">
+        <span class="field-label">Місто (локація оголошення)</span>
+        <input type="text" name="city" value="<%= company.city || '' %>"
+               placeholder="Луцьк" autocomplete="off" />
+        <span class="field-hint">Стає локацією оголошення на TruckMarket</span>
+      </label>
+      <label class="field">
+        <span class="field-label">Країна виробника</span>
+        <input type="text" name="country" value="<%= company.country || '' %>"
+               placeholder="Німеччина" autocomplete="off" />
+        <span class="field-hint">Опціонально. Накладається на оброблене фото</span>
+      </label>
+    </div>
+    <div class="form-actions">
+      <button type="submit" class="btn-primary">Зберегти зміни</button>
+      <a href="/companies/<%= company.id %>" class="btn-ghost">Скасувати</a>
+    </div>
+  </form>
+</details>
 
 <section class="status-tabs">
   <a href="/companies/<%= company.id %>"               class="status-tab <%= !status ? 'active' : '' %>">
@@ -45,6 +74,7 @@
     </div>
   </form>
 
+  <div class="table-scroll">
   <table class="jobs-table">
     <thead>
       <tr>
@@ -97,17 +127,23 @@
             <% } %>
           </td>
           <td class="actions-cell">
-            <a href="/oils/<%= o.id %>/images">фото</a>
-            <% if (o.truck_status === 'done') { %>
-              <form method="post" action="/oils/<%= o.id %>/unpublish" style="display:inline; margin-left:0.4rem"
-                    onsubmit="return confirm('Видалити #<%= o.truck_listing_id %> з TruckMarket?');">
-                <button type="submit" class="btn-link" style="color:var(--danger)">⊘</button>
-              </form>
-            <% } else if (o.truck_status !== 'in_progress') { %>
-              <form method="post" action="/oils/<%= o.id %>/publish" style="display:inline; margin-left:0.4rem">
-                <button type="submit" class="btn-link" style="color:var(--success)">↑</button>
-              </form>
-            <% } %>
+            <div class="act-group">
+              <a href="/oils/<%= o.id %>/images" class="act">фото</a>
+              <% if (o.truck_status === 'done') { %>
+                <form method="post" action="/oils/<%= o.id %>/unpublish"
+                      data-confirm="Видалити #<%= o.truck_listing_id %> з TruckMarket?">
+                  <button type="submit" class="act act-danger" title="Зняти з TM">⊘</button>
+                </form>
+              <% } else if (o.truck_status === 'outdated') { %>
+                <form method="post" action="/oils/<%= o.id %>/sync-tm">
+                  <button type="submit" class="act act-warning" title="Оновити на TM">⟳</button>
+                </form>
+              <% } else if (o.truck_status !== 'in_progress') { %>
+                <form method="post" action="/oils/<%= o.id %>/publish">
+                  <button type="submit" class="act act-success" title="Опублікувати">↑</button>
+                </form>
+              <% } %>
+            </div>
           </td>
         </tr>
       <% }) %>
@@ -116,4 +152,5 @@
       <% } %>
     </tbody>
   </table>
+  </div>
 </section>

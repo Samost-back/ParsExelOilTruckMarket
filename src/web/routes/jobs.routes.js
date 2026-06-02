@@ -73,16 +73,20 @@ async function jobsRoutes(fastify, { jobsRepo, runner }) {
     });
 
     const onLine = (line) => reply.raw.write(`event: line\ndata: ${line.replace(/\n/g, "\\n")}\n\n`);
+    const onSummary = (summary) =>
+      reply.raw.write(`event: summary\ndata: ${JSON.stringify(summary)}\n\n`);
     const onDone = (info) => {
       reply.raw.write(`event: done\ndata: ${JSON.stringify(info)}\n\n`);
       reply.raw.end();
     };
 
     emitter.on("line", onLine);
+    emitter.on("summary", onSummary);
     emitter.on("done", onDone);
 
     req.raw.on("close", () => {
       emitter.off("line", onLine);
+      emitter.off("summary", onSummary);
       emitter.off("done", onDone);
     });
   });

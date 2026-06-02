@@ -34,11 +34,27 @@
      class="status-tab <%= filters.status === 'done' ? 'active' : '' %>">
     <span class="dot dot-success"></span> Опубліковано <span class="count"><%= counts.done %></span>
   </a>
+  <a href="/oils<%= qs({ status: 'outdated' }) %>"
+     class="status-tab <%= filters.status === 'outdated' ? 'active' : '' %>">
+    <span class="dot dot-warning"></span> Застарілі <span class="count"><%= counts.outdated %></span>
+  </a>
   <a href="/oils<%= qs({ status: 'failed' }) %>"
      class="status-tab <%= filters.status === 'failed' ? 'active' : '' %>">
     <span class="dot dot-danger"></span> Помилки <span class="count"><%= counts.failed %></span>
   </a>
 </section>
+
+<% if (counts.outdated > 0) { %>
+<section class="card toolbar-card">
+  <div>
+    <strong><%= counts.outdated %></strong> опублікованих олив мають змінену ціну — оголошення на TruckMarket застаріли.
+  </div>
+  <form method="post" action="/oils/sync-outdated"
+        data-confirm="Оновити всі <%= counts.outdated %> застарілих оголошень на TruckMarket?">
+    <button type="submit" class="btn-warning">⟳ Оновити всі застарілі на TM</button>
+  </form>
+</section>
+<% } %>
 
 <section class="card">
   <form method="get" action="/oils" class="form">
@@ -68,6 +84,17 @@
           <% }) %>
         </select>
       </label>
+      <label class="field">
+        <span class="field-label">Інтеграція</span>
+        <select name="integration">
+          <option value="">— всі —</option>
+          <% facets.integrations.forEach(ig => { %>
+            <option value="<%= ig.id %>" <%= String(filters.integration) === String(ig.id) ? "selected" : "" %>>
+              <%= ig.name %>
+            </option>
+          <% }) %>
+        </select>
+      </label>
     </div>
     <div class="form-actions">
       <button type="submit" class="btn-primary">Фільтрувати</button>
@@ -77,76 +104,35 @@
 </section>
 
 <section class="card">
-  <table class="jobs-table">
+  <div class="table-scroll">
+  <table class="jobs-table oils-table">
     <thead>
       <tr>
-        <th></th>
+        <th class="col-thumb"></th>
         <th>Тип</th>
-        <th>Компанія</th>
+        <th class="col-company">Компанія</th>
         <th>Назва</th>
-        <th>Артикул</th>
-        <th>Об'єм</th>
+        <th>Бренд</th>
+        <th class="col-city">Місто</th>
+        <th class="col-integration">Інтеграція</th>
+        <th class="col-articul">Артикул</th>
+        <th class="col-volume">Об'єм</th>
         <th>Ціна</th>
-        <th>Фото</th>
+        <th class="col-photo">Фото</th>
         <th>TM</th>
-        <th></th>
+        <th class="col-actions"></th>
       </tr>
     </thead>
     <tbody>
       <% oils.forEach(o => { %>
-        <tr>
-          <td>
-            <% if (o.img_total > 0) { %>
-              <a href="/oils/<%= o.id %>/images" class="oil-thumb-link">
-                <img src="/oils/<%= o.id %>/image/first" loading="lazy" alt="" class="oil-thumb-img" />
-              </a>
-            <% } else { %>
-              <div class="oil-thumb-empty">—</div>
-            <% } %>
-          </td>
-          <td><span class="kind-pill"><%= o.name_type_oil %></span></td>
-          <td><%= o.company_name %></td>
-          <td><a href="/oils/<%= o.id %>/images" class="oil-name"><%= o.name %></a></td>
-          <td><code><%= o.articul %></code></td>
-          <td><%= o.packaging_volume %> л</td>
-          <td><%= o.price != null ? (o.price + " ₴") : "—" %></td>
-          <td>
-            <% if (o.img_total > 0) { %>
-              <span class="kind-pill"><%= o.img_done %>/<%= o.img_total %></span>
-            <% } else { %>
-              <span class="text-muted">—</span>
-            <% } %>
-          </td>
-          <td>
-            <% if (o.truck_status === 'done') { %>
-              <span class="badge badge-done">#<%= o.truck_listing_id %></span>
-            <% } else if (o.truck_status === 'in_progress') { %>
-              <span class="badge badge-in_progress">в роботі</span>
-            <% } else if (o.truck_status === 'failed') { %>
-              <span class="badge badge-failed" title="<%= o.truck_error || '' %>">помилка</span>
-            <% } else { %>
-              <span class="badge badge-pending">очікує</span>
-            <% } %>
-          </td>
-          <td class="actions-cell">
-            <% if (o.truck_status === 'done') { %>
-              <form method="post" action="/oils/<%= o.id %>/unpublish" style="display:inline"
-                    onsubmit="return confirm('Видалити #<%= o.truck_listing_id %> з TruckMarket?');">
-                <button type="submit" class="btn-link" style="color:var(--danger)">⊘ зняти з TM</button>
-              </form>
-            <% } else if (o.truck_status !== 'in_progress') { %>
-              <form method="post" action="/oils/<%= o.id %>/publish" style="display:inline">
-                <button type="submit" class="btn-link" style="color:var(--success)">↑ опублікувати</button>
-              </form>
-            <% } %>
-          </td>
-        </tr>
+        <%- include("_oil-row", { o }) %>
       <% }) %>
       <% if (oils.length === 0) { %>
-        <tr><td colspan="10" class="muted">Нічого не знайдено</td></tr>
+        <tr><td colspan="13" class="muted">Нічого не знайдено</td></tr>
       <% } %>
     </tbody>
   </table>
+  </div>
 
   <% if (total > perPage) { %>
     <div class="pagination">

@@ -2,7 +2,8 @@
   "scripts": {
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:cov": "vitest run --coverage"
+    "test:cov": "vitest run --coverage",
+    "seed:integrations": "node database/run-sql.js database/seeds/basic_integrations.sql"
   },
   "dependencies": {
     "@fastify/formbody": "^8.0.2",

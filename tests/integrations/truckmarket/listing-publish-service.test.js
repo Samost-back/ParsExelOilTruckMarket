@@ -69,3 +69,37 @@ describe("ListingPublishService.publish", () => {
     expect(result.warnings.some(w => /75W-90/.test(w))).toBe(true);
   });
 });
+
+describe("ListingPublishService.update", () => {
+  const makeOutdatedRow = () => ({ ...makeRow(), truck_listing_id: 5555, price: 150 });
+
+  it("успіх: updateListing(listingId, payload) + repo.markTruckUpdated", async () => {
+    const api = { updateListing: vi.fn().mockResolvedValue({ success: true }) };
+    const repo = { markTruckUpdated: vi.fn() };
+    const svc = new ListingPublishService({ api, repo });
+
+    const result = await svc.update(makeOutdatedRow(), { description: "d" });
+    expect(result.listingId).toBe(5555);
+    expect(api.updateListing).toHaveBeenCalledOnce();
+    expect(api.updateListing.mock.calls[0][0]).toBe(5555);
+    expect(api.updateListing.mock.calls[0][1].price).toBe(150);
+    expect(repo.markTruckUpdated).toHaveBeenCalledWith(1);
+  });
+
+  it("без truck_listing_id → throw, без виклику API", async () => {
+    const api = { updateListing: vi.fn() };
+    const repo = { markTruckUpdated: vi.fn() };
+    const svc = new ListingPublishService({ api, repo });
+    const row = makeRow(); // немає truck_listing_id
+    await expect(svc.update(row)).rejects.toThrow(/truck_listing_id required/);
+    expect(api.updateListing).not.toHaveBeenCalled();
+  });
+
+  it("success=false → throw, статус не оновлюється", async () => {
+    const api = { updateListing: vi.fn().mockResolvedValue({ success: false }) };
+    const repo = { markTruckUpdated: vi.fn() };
+    const svc = new ListingPublishService({ api, repo });
+    await expect(svc.update(makeOutdatedRow())).rejects.toThrow(/update reply/);
+    expect(repo.markTruckUpdated).not.toHaveBeenCalled();
+  });
+});

@@ -41,7 +41,7 @@ const TRUCKMARKET_CATEGORY_FIELDS = {
     "API": "f25",
     "Низький рівень SAPS": "f3",
     "Артикул": "f22",
-    "Об'єм упаковки, л": "f6",
+    "Об'єм упаковки, л": "f8",
     "Допуски виробників": "f23",
     "Марки авто": "f5",
   },
@@ -183,8 +183,8 @@ const SAE_OPTIONS_MOTOR = {
 };
 
 // === СПІЛЬНИЙ СПИСОК ОБ'ЄМІВ УПАКОВКИ для всіх трьох категорій ===
-// f-код: моторні=f6, трансмісійні/гідравлічні=f4.
-// ID підтверджено HTML d[4] — оновлений спільний словник 0.1…1000 л (18 значень).
+// f-код: моторні=f8 (d[8]), трансмісійні/гідравлічні=f4.
+// ID підтверджено HTML d[8] і d[4] — спільний словник 0.1…1000 л (18 значень).
 const PACKAGING_VOLUME_OPTIONS = {
   0.1:  1,
   0.25: 2,
@@ -279,7 +279,7 @@ const TRUCKMARKET_FIELD_OPTIONS = {
     f2: SAE_OPTIONS_MOTOR,
     f3: LOW_SAPS_OPTIONS_MOTOR,
     f5: CAR_BRAND_OPTIONS,           // bitmask
-    f6: PACKAGING_VOLUME_OPTIONS_MOTOR,
+    f8: PACKAGING_VOLUME_OPTIONS_MOTOR, // об'єм моторної = d[8] (підтверджено HTML)
     f7: BRAND_OPTIONS,
   },
   // Трансмісійні оливи

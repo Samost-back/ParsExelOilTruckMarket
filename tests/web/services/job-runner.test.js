@@ -5,6 +5,7 @@ function makeRepo() {
   let nextId = 1;
   const lines = new Map();
   const statuses = new Map();
+  const summaries = new Map();
   return {
     create: vi.fn(async () => nextId++),
     start: vi.fn(async (id) => { statuses.set(id, "running"); }),
@@ -15,8 +16,10 @@ function makeRepo() {
     finishFailed: vi.fn(async (id, err) => statuses.set(id, "failed:" + err)),
     finishCancelled: vi.fn(async (id) => statuses.set(id, "cancelled")),
     setPid: vi.fn(async () => {}),
+    setSummary: vi.fn(async (id, summary) => summaries.set(id, summary)),
     _statuses: statuses,
     _lines: lines,
+    _summaries: summaries,
   };
 }
 
@@ -41,6 +44,22 @@ describe("JobRunner", () => {
     expect(repo._statuses.get(jobId)).toBe("done");
     expect(repo._lines.get(jobId)).toContain("line1");
     expect(repo._lines.get(jobId)).toContain("line2");
+  });
+
+  it("лог: рядки з префіксом часу [HH:MM:SS] + банери старт/фініш", async () => {
+    const repo = makeRepo();
+    const runner = new JobRunner({ jobsRepo: repo, maxConcurrent: 5 });
+    const jobId = await runner.run({
+      kind: "import", params: {}, userId: 1,
+      fn: async (ctx) => { await ctx.log("робота"); },
+    });
+    await waitForDone(runner, jobId);
+    const log = repo._lines.get(jobId);
+    // часовий префікс на кожному рядку
+    expect(log).toMatch(/\[\d{2}:\d{2}:\d{2}\] робота/);
+    // банери
+    expect(log).toContain("▶ Старт задачі");
+    expect(log).toMatch(/✔ Завершено успішно за [\d.]+с/);
   });
 
   it("fn throw → status failed з повідомленням", async () => {
@@ -75,6 +94,26 @@ describe("JobRunner", () => {
     const info = await waitForDone(runner, jobId);
     expect(info.status).toBe("cancelled");
     expect(repo._statuses.get(jobId)).toBe("cancelled");
+  });
+
+  it("ctx.setSummary: пише в repo.setSummary і emit('summary')", async () => {
+    const repo = makeRepo();
+    const runner = new JobRunner({ jobsRepo: repo, maxConcurrent: 5 });
+    const summaryEvents = [];
+    let jobId;
+    jobId = await runner.run({
+      kind: "import", params: {}, userId: 1,
+      fn: async (ctx) => {
+        // підписуємось на summary до першого виклику
+        runner.emitterFor(ctx.jobId).on("summary", (s) => summaryEvents.push(s));
+        await ctx.setSummary({ mode: "xlsx", steps: [{ name: "parse", status: "running" }] });
+        await ctx.setSummary({ mode: "xlsx", steps: [{ name: "parse", status: "done" }] });
+      },
+    });
+    await waitForDone(runner, jobId);
+    expect(repo.setSummary).toHaveBeenCalled();
+    // остання збережена версія — done
+    expect(repo._summaries.get(jobId).steps[0].status).toBe("done");
   });
 
   it("cancel неіснуючого → false", () => {

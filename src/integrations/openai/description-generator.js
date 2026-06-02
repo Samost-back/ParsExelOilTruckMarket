@@ -28,13 +28,16 @@ class DescriptionGenerator {
     };
 
     lines.push(`Назва товару: ${DescriptionGenerator._normalizeName(row.name)}`);
-    push("Бренд", row.company_name);
+    // Бренд — джерело правди olivs.brand, fallback на назву компанії.
+    push("Бренд", row.brand || row.company_name);
     push("Категорія", row.name_type_oil);
     push("Тип оливи", row.type_oil);
     push("В'язкість SAE", row.viscosity_sae);
-    push("ISO VG", row.iso_vg_viscosity_grade);
+    push("Клас в'язкості ISO VG", row.iso_vg_viscosity_grade);
+    push("Стандарт G", row.standart_g);
     push("Артикул", row.articul);
     push("Об'єм упаковки", row.packaging_volume ? `${row.packaging_volume} л` : null);
+    push("Кількість на складі", row.quantity);
     push("ACEA", row.acea);
     push("API", row.api);
     push("DOT", row.dot);
@@ -43,6 +46,8 @@ class DescriptionGenerator {
     push("Колір", row.color_liquid);
     push("Допуски виробників", row.manufacturers_tolerances);
     push("Сумісні марки авто", row.car_brand);
+    push("Місто", row.city);
+    push("Ціна, грн", row.price);
 
     return lines.join("\n");
   }
