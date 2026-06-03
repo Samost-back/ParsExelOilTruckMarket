@@ -131,8 +131,7 @@ function streamToBuffer(stream) {
   });
 }
 
-async function processOne({ srcPath, articul, packagingVolume, nameTypeOil, country, noCountry = false, debugTag }) {
-  if (debugTag) console.log(`  · ${debugTag}`);
+async function processOne({ srcPath, articul, packagingVolume, nameTypeOil, country, noCountry = false }) {
   const mapping = resolveMappingFromDb(packagingVolume, nameTypeOil);
   if (!mapping) {
     return { status: "skipped", error: `немає об'єму в БД (packaging_volume=${packagingVolume})` };
@@ -214,11 +213,18 @@ async function processOne({ srcPath, articul, packagingVolume, nameTypeOil, coun
     });
 
     platesSvg = buildPlatesSvg(canvasW, canvasH, items);
-    // Білий прямокутник, що накриває всю стару зону плашок (з хвостами стрілок зліва).
+    // Білий прямокутник, що накриває ВСЮ стару зону вшитих у шаблон плашок
+    // (об'єм + комбінезон + країна), з хвостами стрілок зліва.
+    // ВАЖЛИВО: накриваємо зону під МАКСИМУМ 3 плашки (а не лише ті, що малюємо),
+    // інакше для Manager (лише об'єм) вшиті в шаблон "Комбінезон"/"Країна"
+    // лишаються видимими нижче короткого cover'а.
+    const MAX_PLATES = 3;
     const coverX = Math.max(0, pp.left - Math.round(pp.height * 1.2) - 6);
     const coverY = Math.max(0, pp.top - 4);
     const coverW = canvasW - coverX;
-    const coverH = (nextTop + step) - coverY;
+    // знизу додаємо ще step запасу, щоб точно стерти нижній край останньої плашки
+    const coverBottom = pp.top + MAX_PLATES * step + step;
+    const coverH = coverBottom - coverY;
     plateCover = Buffer.from(
       `<svg xmlns="http://www.w3.org/2000/svg" width="${canvasW}" height="${canvasH}">` +
         `<rect x="${coverX}" y="${coverY}" width="${coverW}" height="${coverH}" fill="#ffffff"/>` +
@@ -289,8 +295,6 @@ async function processOne({ srcPath, articul, packagingVolume, nameTypeOil, coun
 
   for (const r of rows) {
     const head = `[oils_images.id=${r.id}, olivs.id=${r.oils_id}, articul=${r.articul}]`;
-    // Manager — фото лише з літражем (без комбінезона й країни).
-    const noCountry = r.integration_code === "ManagerIntegration";
     let res;
     try {
       res = await processOne({
@@ -299,8 +303,8 @@ async function processOne({ srcPath, articul, packagingVolume, nameTypeOil, coun
         packagingVolume: r.packaging_volume,
         nameTypeOil: r.name_type_oil,
         country: r.company_country || COUNTRY_FALLBACK,
-        noCountry,
-        debugTag: `${head} integ=${r.integration_code} noCountry=${noCountry}`,
+        // Manager — фото лише з літражем (без комбінезона й країни).
+        noCountry: r.integration_code === "ManagerIntegration",
       });
     } catch (e) {
       res = { status: "failed", error: `unexpected: ${e.message}` };
