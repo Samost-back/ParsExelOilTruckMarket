@@ -131,7 +131,8 @@ function streamToBuffer(stream) {
   });
 }
 
-async function processOne({ srcPath, articul, packagingVolume, nameTypeOil, country, noCountry = false }) {
+async function processOne({ srcPath, articul, packagingVolume, nameTypeOil, country, noCountry = false, debugTag }) {
+  if (debugTag) console.log(`  · ${debugTag}`);
   const mapping = resolveMappingFromDb(packagingVolume, nameTypeOil);
   if (!mapping) {
     return { status: "skipped", error: `немає об'єму в БД (packaging_volume=${packagingVolume})` };
@@ -288,6 +289,8 @@ async function processOne({ srcPath, articul, packagingVolume, nameTypeOil, coun
 
   for (const r of rows) {
     const head = `[oils_images.id=${r.id}, olivs.id=${r.oils_id}, articul=${r.articul}]`;
+    // Manager — фото лише з літражем (без комбінезона й країни).
+    const noCountry = r.integration_code === "ManagerIntegration";
     let res;
     try {
       res = await processOne({
@@ -296,8 +299,8 @@ async function processOne({ srcPath, articul, packagingVolume, nameTypeOil, coun
         packagingVolume: r.packaging_volume,
         nameTypeOil: r.name_type_oil,
         country: r.company_country || COUNTRY_FALLBACK,
-        // Manager — фото без назви країни на бочці.
-        noCountry: r.integration_code === "ManagerIntegration",
+        noCountry,
+        debugTag: `${head} integ=${r.integration_code} noCountry=${noCountry}`,
       });
     } catch (e) {
       res = { status: "failed", error: `unexpected: ${e.message}` };
