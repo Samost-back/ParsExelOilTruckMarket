@@ -7,15 +7,14 @@
 //      Без listingId бере перше опубліковане з БД. Друкує всі поля, де
 //      трапляється номер, і повний дамп data — щоб побачити ім'я поля.
 //
-//   2) ОНОВЛЕННЯ (поставити номер усім опублікованим):
-//        # спершу dry-run (нічого не пише):
-//        node .../set-phone.js --phone=+380675530846 --field=<поле>
-//        # реально застосувати:
-//        node .../set-phone.js --phone=+380675530846 --field=<поле> --apply
-//      <listingId...> після прапорців — обмежити конкретними id (інакше всі).
-//
-// Чому --field обов'язковий для оновлення: щоб не вгадувати й не зламати
-// оголошення записом у неправильне поле. Спочатку --inspect, тоді --field.
+//   2) ОНОВЛЕННЯ (поставити номер УСІМ опублікованим оливам):
+//        # dry-run (нічого не пише) — номер і поле за дефолтом/автодетектом:
+//        node .../set-phone.js
+//        # реально застосувати на всіх:
+//        node .../set-phone.js --apply
+//      Дефолтний номер: +380675530846 (override: --phone=+380...).
+//      Поле телефону визначається автоматично з першого оголошення; за потреби
+//      перевизначити: --field=<імʼя_поля>. <listingId...> — обмежити конкретними.
 
 require("dotenv").config();
 const { withDb } = require("../../../shared/infra/db");
@@ -31,10 +30,13 @@ const val = (name) => {
 };
 const ids = args.filter((a) => /^\d+$/.test(a)).map(Number);
 
+// Дефолтний номер — щоб не вводити щоразу. Перевизначається через --phone=.
+const DEFAULT_PHONE = "+380675530846";
+
 const INSPECT = has("--inspect");
 const APPLY = has("--apply");
-const PHONE = val("phone");
-const FIELD = val("field");
+const PHONE = val("phone") || DEFAULT_PHONE;
+const FIELD = val("field"); // якщо не задано — визначимо автоматично (autoDetectField)
 
 // Рекурсивно шукає в обʼєкті значення, схожі на телефон, і повертає шляхи.
 function findPhonePaths(obj, prefix = "") {
@@ -49,6 +51,18 @@ function findPhonePaths(obj, prefix = "") {
   };
   walk(obj, prefix);
   return out;
+}
+
+// Авто-визначення top-level поля з телефоном за даними оголошення.
+// Беремо перший знайдений шлях і його корінь (напр. "phone" з "phone" або
+// "contact.phone" → "contact"). Повертає рядок або null.
+function detectPhoneField(data) {
+  const paths = findPhonePaths(data);
+  if (!paths.length) return null;
+  // "field = value" → беремо ліву частину до крапки/дужки
+  const lhs = paths[0].split(" = ")[0];
+  const root = lhs.split(/[.[]/)[0];
+  return root || null;
 }
 
 (async () => {
@@ -79,18 +93,31 @@ function findPhonePaths(obj, prefix = "") {
       return;
     }
 
-    // === ОНОВЛЕННЯ ===
-    if (!PHONE) { log.error("Вкажіть --phone=+380XXXXXXXXX"); process.exit(1); }
-    if (!FIELD) {
-      log.error("Вкажіть --field=<імʼя поля телефону>. Спершу запустіть з --inspect, щоб його знайти.");
-      process.exit(1);
-    }
-
+    // === ОНОВЛЕННЯ (по ВСІХ опублікованих оливах) ===
     let rows = await repo.findAllPublished();
     if (ids.length) rows = rows.filter((r) => ids.includes(Number(r.truck_listing_id)));
     if (!rows.length) { log.error("Немає оголошень для оновлення."); process.exit(1); }
 
-    log.info(`${APPLY ? "ЗАСТОСУВАННЯ" : "DRY-RUN"}: поле "${FIELD}" = "${PHONE}" для ${rows.length} оголошень`);
+    // Поле телефону: явне --field, або авто-визначення з першого оголошення.
+    let field = FIELD;
+    if (!field) {
+      const sampleId = Number(rows[0].truck_listing_id);
+      log.info(`--field не задано — визначаю поле телефону з оголошення ${sampleId} ...`);
+      try {
+        const res = await api.getListingData(sampleId);
+        field = detectPhoneField(res && (res.data || res));
+      } catch (e) {
+        log.error(`Не вдалося прочитати оголошення для автодетекту: ${e.message}`);
+      }
+      if (!field) {
+        log.error("Не вдалося визначити поле телефону автоматично. " +
+          "Запустіть з --inspect і вкажіть --field=<імʼя поля>.");
+        process.exit(1);
+      }
+      log.info(`Авто-визначене поле телефону: "${field}"`);
+    }
+
+    log.info(`${APPLY ? "ЗАСТОСУВАННЯ" : "DRY-RUN"}: поле "${field}" = "${PHONE}" для ${rows.length} оголошень`);
     if (!APPLY) log.info("(dry-run — нічого не пишемо; додайте --apply щоб застосувати)");
 
     let ok = 0, failed = 0;
@@ -99,7 +126,7 @@ function findPhonePaths(obj, prefix = "") {
       const tag = `listing=${lid} (${r.articul} — ${r.name})`;
       if (!APPLY) { console.log(`  • ${tag}`); ok++; continue; }
       try {
-        await api.updateListing(lid, { [FIELD]: PHONE });
+        await api.updateListing(lid, { [field]: PHONE });
         console.log(`  ✓ ${tag}`);
         ok++;
       } catch (e) {
