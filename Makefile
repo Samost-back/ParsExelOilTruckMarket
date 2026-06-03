@@ -9,7 +9,7 @@ DB      ?= db
 
 .DEFAULT_GOAL := help
 .PHONY: help up down restart build logs ps sh psql \
-        migrate seed-integrations seed-prompt init create-user \
+        migrate seed-integrations seed-prompt reprocess-photos init create-user \
         test backup-db wipe-data export-json \
         deploy wait-healthy
 
@@ -51,6 +51,10 @@ seed-integrations: ## Додати базові інтеграції (EUROLUB, M
 
 seed-prompt: ## Додати дефолтний AI-промпт (лише якщо промптів ще немає) — ідемпотентно
 	$(COMPOSE) exec $(APP) node database/run-sql.js database/seeds/default_prompt.sql
+
+reprocess-photos: ## Перегенерувати ВСІ фото наново (перезаписує в S3/local, включно з done)
+	$(COMPOSE) exec $(APP) node src/photos/process/index.js --reprocess
+	@echo "✓ Фото перегенеровано (оновлено processed_path у БД і файли у сховищі)"
 
 init: up migrate seed-integrations seed-prompt ## Підняти стек + міграції + базові інтеграції + промпт
 

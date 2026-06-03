@@ -21,7 +21,7 @@ const path = require("path");
 const sharp = require("sharp");
 const { Client } = require("pg");
 const CFG = require("./template-config.cjs");
-const { buildPlatesSvg } = require("./plates.cjs");
+const { buildPlatesSvg, buildPlateItems } = require("./plates.cjs");
 const PLATE_POS = require("./plate-positions.cjs");
 const { getStorage } = require("../../shared/infra/storage");
 
@@ -202,18 +202,15 @@ async function processOne({ srcPath, articul, packagingVolume, nameTypeOil, coun
   let platesSvg = null;
   let plateCover = null;
   if (pp) {
-    const gap = Math.round(pp.height * 0.45);
-    const step = pp.height + gap;
     const volLabel = mapping.unit === "kg"
       ? `${String(mapping.value).replace(/\s*кг$/i, "")} кг`
       : `${String(mapping.value).replace(/\s*л$/i, "")} л`;
-    const hasCoverall = !noCountry && Math.round(Number(packagingVolume)) === COVERALL_VOLUME;
-    const showCountry = !noCountry;
-
-    const items = [{ label: volLabel, rect: { ...pp } }];
-    let nextTop = pp.top + step;
-    if (hasCoverall) { items.push({ label: "Комбінезон", rect: { ...pp, top: nextTop } }); nextTop += step; }
-    if (showCountry) { items.push({ label: country, rect: { ...pp, top: nextTop } }); }
+    // Які плашки малювати — чиста логіка в plates.cjs (тестована).
+    // Manager (noCountry) → ТІЛЬКИ об'єм; інші → об'єм + комбінезон + країна.
+    const { items, nextTop, step } = buildPlateItems({
+      pp, volLabel, country, packagingVolume,
+      coverallVolume: COVERALL_VOLUME, noCountry,
+    });
 
     platesSvg = buildPlatesSvg(canvasW, canvasH, items);
     // Білий прямокутник, що накриває всю стару зону плашок (з хвостами стрілок зліва).

@@ -55,4 +55,25 @@ function buildPlatesSvg(canvasW, canvasH, plates) {
   );
 }
 
-module.exports = { buildPlatesSvg, plateSvg, PLATE };
+// Чисто (без I/O) вирішує, ЯКІ плашки малювати і де (зверху вниз):
+//   [Об'єм] → [Комбінезон?] → [Країна?]
+// Правила:
+//   noCountry=true (інтеграція Manager) → ТІЛЬКИ об'єм (без комбінезона й країни).
+//   інакше → об'єм + комбінезон (якщо об'єм == coverallVolume) + країна.
+// pp — базовий прямокутник плашки об'єму { left, top, width, height }.
+// Повертає { items: [{label, rect}], nextTop } — items готові для buildPlatesSvg,
+// nextTop — нижня межа блоку (для білого cover'а).
+function buildPlateItems({ pp, volLabel, country, packagingVolume, coverallVolume, noCountry }) {
+  const gap = Math.round(pp.height * 0.45);
+  const step = pp.height + gap;
+  const hasCoverall = !noCountry && Math.round(Number(packagingVolume)) === Number(coverallVolume);
+  const showCountry = !noCountry && !!country;
+
+  const items = [{ label: volLabel, rect: { ...pp } }];
+  let nextTop = pp.top + step;
+  if (hasCoverall) { items.push({ label: "Комбінезон", rect: { ...pp, top: nextTop } }); nextTop += step; }
+  if (showCountry) { items.push({ label: country, rect: { ...pp, top: nextTop } }); nextTop += step; }
+  return { items, nextTop, step };
+}
+
+module.exports = { buildPlatesSvg, plateSvg, PLATE, buildPlateItems };
