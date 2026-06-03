@@ -234,6 +234,10 @@ async function companiesRoutes(fastify, { db, runner }) {
     if (!filePath) return reply.code(404).send("Файл відсутній");
 
     const storage = getStorage();
+    // Не кешуємо у браузері: фото перегенеровується (reprocess) під тим самим
+    // URL, тож кеш показував би стару версію (зі старою плашкою). no-store
+    // змушує браузер щоразу брати актуальне (presigned-URL теж свіжий).
+    reply.header("Cache-Control", "no-store, must-revalidate");
     // S3: 302 на тимчасове presigned-посилання — браузер тягне прямо з бакета,
     // сервер не проксіює байти. Local: стрімимо файл через сервер як раніше.
     if (storage.driver === "s3") {
@@ -252,7 +256,6 @@ async function companiesRoutes(fastify, { db, runner }) {
               : ext === ".tif" || ext === ".tiff" ? "image/tiff"
               : "image/jpeg";
     reply.header("Content-Type", mime);
-    reply.header("Cache-Control", "private, max-age=3600");
     return reply.send(await storage.openRead(filePath));
   });
 
