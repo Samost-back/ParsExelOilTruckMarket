@@ -9,7 +9,7 @@ DB      ?= db
 
 .DEFAULT_GOAL := help
 .PHONY: help up down restart build logs ps sh psql \
-        migrate seed-integrations init create-user \
+        migrate seed-integrations seed-prompt init create-user \
         test backup-db wipe-data export-json \
         deploy wait-healthy
 
@@ -49,7 +49,10 @@ migrate: ## Прогнати всі міграції (database/migrations/*.sql)
 seed-integrations: ## Додати базові інтеграції (EUROLUB, Manager) — ідемпотентно
 	$(COMPOSE) exec $(APP) node database/run-sql.js database/seeds/basic_integrations.sql
 
-init: up migrate seed-integrations ## Підняти стек + міграції + базові інтеграції
+seed-prompt: ## Додати дефолтний AI-промпт (лише якщо промптів ще немає) — ідемпотентно
+	$(COMPOSE) exec $(APP) node database/run-sql.js database/seeds/default_prompt.sql
+
+init: up migrate seed-integrations seed-prompt ## Підняти стек + міграції + базові інтеграції + промпт
 
 ## ---- Деплой ----
 wait-healthy: ## Чекати поки app стане healthy (до ~90с)
@@ -69,6 +72,7 @@ deploy: ## Повний деплой однією командою: build → up
 	@$(MAKE) wait-healthy
 	@$(MAKE) migrate
 	@$(MAKE) seed-integrations
+	@$(MAKE) seed-prompt
 	@echo ""
 	@echo "✓ Деплой завершено. HTTPS: https://$$(grep -E '^APP_DOMAIN=' .env | cut -d= -f2-)"
 	@echo "  Якщо ще немає користувача: make create-user U=admin P=<пароль>"
