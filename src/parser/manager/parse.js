@@ -217,11 +217,30 @@ function buildName(block, volume, sae) {
   return `${base} | ${volume} л`;
 }
 
-// Зчитування файлу → масив рядків аркуша Daf (або вказаного).
+// Зчитування файлу → масив рядків аркуша.
+// Пріоритет вибору аркуша:
+//   1) точна назва sheetName (за замовч. "Daf"), без урахування регістру/пробілів;
+//   2) якщо такого немає — ПЕРША сторінка книги.
+// Так імпорт працює і коли аркуш названо інакше (Daf/DAF/Лист1/тощо).
 function readManagerSheet(filePath, sheetName = "Daf") {
   const wb = xlsx.readFile(filePath, { cellDates: false });
-  const ws = wb.Sheets[sheetName];
-  if (!ws) throw new Error(`Аркуш "${sheetName}" не знайдено. Є: ${wb.SheetNames.join(", ")}`);
+  const names = wb.SheetNames || [];
+  if (names.length === 0) {
+    throw new Error(`У файлі немає жодного аркуша: ${filePath}`);
+  }
+  const norm = (s) => String(s || "").trim().toLowerCase();
+  // 1) шукаємо за назвою (регістронезалежно), 2) інакше — перша сторінка.
+  let chosen = names.find((n) => norm(n) === norm(sheetName));
+  if (!chosen) {
+    chosen = names[0];
+    console.log(
+      `ℹ Аркуш "${sheetName}" не знайдено (є: ${names.join(", ")}) — ` +
+        `беру першу сторінку "${chosen}"`,
+    );
+  } else {
+    console.log(`✓ Аркуш: "${chosen}"`);
+  }
+  const ws = wb.Sheets[chosen];
   return xlsx.utils.sheet_to_json(ws, { header: 1, defval: null, blankrows: false });
 }
 

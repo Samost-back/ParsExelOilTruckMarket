@@ -1147,3 +1147,24 @@ tbody tr:last-child td { border-bottom: 0; }
 .info-list li::before { content: "→"; position: absolute; left: 0; color: var(--accent); }
 .info-list strong { color: var(--text); }
 .info-list em { color: var(--text); font-style: normal; font-weight: 600; }
+
+/* ===== Перемикач режиму імпорту (import.ejs) ===== */
+.mode-switch {
+  display: inline-flex; gap: 0.25rem; margin-bottom: 1.2rem;
+  background: var(--surface-2); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 0.25rem;
+}
+.mode-btn {
+  appearance: none; border: 0; cursor: pointer;
+  padding: 0.5rem 1rem; border-radius: var(--radius-sm);
+  background: transparent; color: var(--text-muted);
+  font: inherit; font-size: 0.9rem; font-weight: 600;
+  transition: background 0.15s, color 0.15s;
+}
+.mode-btn:hover:not(.is-active):not(:disabled) { color: var(--text); background: var(--surface-3); }
+.mode-btn.is-active { background: var(--accent); color: #fff; }
+.mode-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+@media (max-width: 720px) {
+  .mode-switch { display: flex; }
+  .mode-btn { flex: 1; padding: 0.55rem 0.5rem; }
+}

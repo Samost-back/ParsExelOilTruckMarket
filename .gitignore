@@ -14,6 +14,15 @@ pnpm-debug.log*
 *.key
 secrets/
 
+# === Дампи/експорти БД — містять дані й bcrypt-хеші паролів. НЕ комітити ===
+db-export*.json
+*-export.json
+backup.sql
+*.dump
+
+# === Локальна памʼять асистента (нотатки) — не для репо ===
+memory/
+
 # === Input data (prices) — не код, можуть містити чутливі ціни/контакти ===
 Excel/
 *.xls

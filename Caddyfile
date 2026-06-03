@@ -1,0 +1,26 @@
+# Caddy reverse-proxy з автоматичним HTTPS (Let's Encrypt).
+# Домен береться зі змінної APP_DOMAIN (docker-compose передає її в Caddy).
+# Для AWS EC2 це публічний DNS, напр.:
+#   APP_DOMAIN=ec2-34-205-88-192.compute-1.amazonaws.com
+#
+# Caddy сам:
+#   - отримує й оновлює TLS-сертифікат на цей домен;
+#   - редіректить HTTP(80) → HTTPS(443);
+#   - проксує на app:3000 у приватній docker-мережі;
+#   - НЕ буферизує відповіді → SSE-лог задач іде в реальному часі;
+#   - додає X-Forwarded-Proto/For (Fastify trustProxy робить cookie Secure).
+
+{$APP_DOMAIN} {
+	# Розмір завантаження (прайс/папка фото). Узгоджено з MAX_UPLOAD_BYTES.
+	request_body {
+		max_size 512MB
+	}
+
+	reverse_proxy app:3000 {
+		# X-Forwarded-Proto/For Caddy передає автоматично — Fastify trustProxy
+		# робить cookie Secure. Довгий read_timeout — SSE живе, поки триває задача.
+		transport http {
+			read_timeout 1h
+		}
+	}
+}

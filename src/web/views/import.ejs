@@ -17,8 +17,26 @@
 
 <section class="card">
   <form method="post" action="/import" enctype="multipart/form-data" class="form">
+    <%
+      // Режим керує лише ТИМ, ЯК задається компанія (нова текстом vs наявна
+      // зі списку). Логіка збереження однакова (upsert) — нові артикули
+      // додаються, наявні оновлюються. У "Оновити" компанія мусить існувати.
+      const hasCompanies = companies && companies.length;
+    %>
+    <input type="hidden" name="mode" id="modeInput" value="add" />
+    <div class="mode-switch" role="tablist" aria-label="Режим імпорту">
+      <button type="button" class="mode-btn is-active" data-mode="add" role="tab">
+        Додати нову компанію
+      </button>
+      <button type="button" class="mode-btn" data-mode="update" role="tab"
+              <%= hasCompanies ? "" : "disabled title='Немає компаній для оновлення'" %>>
+        Оновити наявну
+      </button>
+    </div>
+
     <div class="form-row">
-      <label class="field">
+      <!-- Інтеграція — лише при ДОДАВАННІ. У "Оновити" береться з самої компанії. -->
+      <label class="field" data-mode-block="add">
         <span class="field-label">Інтеграція <span class="req">*</span></span>
         <select name="integration" id="integrationSelect" required>
           <% integrations.forEach(i => { %>
@@ -28,19 +46,33 @@
         <span class="field-hint">Стандарт прайсу. Визначає, звідки бренд і місто</span>
       </label>
 
-      <label class="field" data-field="company">
-        <span class="field-label">Назва компанії <span class="req">*</span></span>
-        <input name="company" id="companyInput" required placeholder="EUROLUB" autocomplete="off" />
-        <span class="field-hint">Нова компанія створиться. Та сама — оновиться</span>
+      <!-- Режим ДОДАТИ: нова компанія текстом -->
+      <label class="field" data-field="company" data-mode-block="add">
+        <span class="field-label">Назва нової компанії <span class="req">*</span></span>
+        <input name="companyNew" id="companyInput" placeholder="EUROLUB" autocomplete="off" />
+        <span class="field-hint">Створиться нова компанія з цією назвою</span>
       </label>
 
-      <label class="field" data-field="city">
+      <!-- Режим ОНОВИТИ: лише вибір наявної компанії зі списку -->
+      <label class="field" data-field="company" data-mode-block="update" hidden>
+        <span class="field-label">Компанія для оновлення <span class="req">*</span></span>
+        <select name="companyExisting" id="companySelect" disabled>
+          <option value="" disabled selected>— виберіть компанію —</option>
+          <% (companies || []).forEach(c => { %>
+            <option value="<%= c.name_company %>"><%= c.name_company %></option>
+          <% }) %>
+        </select>
+        <span class="field-hint">Доносимо прайс/фото до наявних олив цієї компанії</span>
+      </label>
+
+      <!-- Місто/Країна — лише при ДОДАВАННІ (атрибути нової компанії). -->
+      <label class="field" data-field="city" data-mode-block="add">
         <span class="field-label">Місто (локація оголошення)</span>
         <input name="city" placeholder="Луцьк" autocomplete="off" />
         <span class="field-hint">Місто компанії — стає локацією оголошення на TruckMarket</span>
       </label>
 
-      <label class="field" data-field="country">
+      <label class="field" data-field="country" data-mode-block="add">
         <span class="field-label">Країна виробника</span>
         <input name="country" placeholder="Німеччина" autocomplete="off" />
         <span class="field-hint">Опціонально. Накладається на оброблене фото</span>
@@ -154,6 +186,49 @@
       render();
     });
 
+    // --- Перемикач режиму "Додати нову" / "Оновити наявну" ---
+    // Керує лише тим, як задається компанія. Активний блок отримує валідне
+    // поле компанії; неактивний — disabled (не сабмітиться).
+    var modeInput   = document.getElementById("modeInput");
+    var companyText = document.getElementById("companyInput");   // companyNew
+    var companySel  = document.getElementById("companySelect");  // companyExisting
+    var modeBtns    = document.querySelectorAll(".mode-btn");
+    var blocksAdd   = document.querySelectorAll('[data-mode-block="add"]');
+    var blocksUpd   = document.querySelectorAll('[data-mode-block="update"]');
+
+    function applyMode(mode) {
+      var isUpdate = mode === "update";
+      modeInput.value = isUpdate ? "update" : "add";
+      // add-блоки (інтеграція, нова назва, місто, країна) — приховані в "Оновити".
+      // Їхні контроли робимо disabled, щоб вони не сабмітились і не блокували
+      // валідацію через required, поки приховані.
+      blocksAdd.forEach(function (b) {
+        b.hidden = isUpdate;
+        b.querySelectorAll("input, select, textarea").forEach(function (el) {
+          el.disabled = isUpdate;
+        });
+      });
+      blocksUpd.forEach(function (b) {
+        b.hidden = !isUpdate;
+        b.querySelectorAll("input, select, textarea").forEach(function (el) {
+          el.disabled = !isUpdate;
+        });
+      });
+      // required лише на активному полі компанії.
+      if (companyText) companyText.required = !isUpdate;
+      if (companySel)  companySel.required  = isUpdate;
+      modeBtns.forEach(function (btn) {
+        btn.classList.toggle("is-active", btn.dataset.mode === mode);
+      });
+    }
+    modeBtns.forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        if (btn.disabled) return;
+        applyMode(btn.dataset.mode);
+      });
+    });
+    applyMode("add"); // дефолт
+
     // --- Upload progress (XHR замість form submit) ---
     var form = document.querySelector("form[action='/import']");
     if (!form) return;
@@ -166,6 +241,15 @@
 
     form.addEventListener("submit", function (e) {
       e.preventDefault();
+      var isUpdate = modeInput.value === "update";
+      // Компанія: у "Додати" — текст, у "Оновити" — вибір зі списку.
+      var companyVal = isUpdate
+        ? (companySel && companySel.value || "")
+        : (companyText && companyText.value || "").trim();
+      if (!companyVal) {
+        alert(isUpdate ? "Виберіть компанію зі списку." : "Введіть назву нової компанії.");
+        return;
+      }
       // Хоча б одне з двох: прайс або папка фото.
       var xlsxInput = document.getElementById("xlsxInput");
       var photosInput = document.getElementById("photosInput");

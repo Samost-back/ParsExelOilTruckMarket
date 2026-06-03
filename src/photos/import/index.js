@@ -22,6 +22,11 @@ const fs = require("fs");
 const path = require("path");
 const { execSync } = require("child_process");
 const { Client } = require("pg");
+const { getStorage } = require("../../shared/infra/storage");
+
+// Префікс storage key для оригіналів. На local фактично лягають у
+// photos_storage/originals/<basename>; на s3 — у бакет під цим же key.
+const ORIGINALS_PREFIX = "originals";
 
 const IMAGE_EXT = new Set([".png", ".jpg", ".jpeg", ".tif", ".tiff", ".webp"]);
 
@@ -108,6 +113,9 @@ function unzipIfNeeded(inputPath) {
     multi_match: 0,      // файлів, що збігаються з 2+ оливо (різні компанії)
   };
 
+  const storage = getStorage();
+  console.log(`✓ Storage: driver=${storage.driver}, key-prefix="${ORIGINALS_PREFIX}/"\n`);
+
   for (const fullPath of files) {
     const articul = extractArticulFromFilename(fullPath);
     const oilsIds = byArticul.get(articul);
@@ -118,6 +126,22 @@ function unzipIfNeeded(inputPath) {
     stats.matched_files++;
     if (oilsIds.length > 1) stats.multi_match++;
 
+    // Зберігаємо оригінал у сховище під стабільним key. На local це означає
+    // копію в photos_storage/originals/<rel>; на s3 — об'єкт у бакеті. У БД
+    // лягає key, а не абсолютний шлях — однаково для обох backend'ів.
+    // <rel> — шлях відносно кореня архіву (унікальний у межах батча).
+    const rel = path.relative(rootDir, fullPath).split(path.sep).join("/");
+    const key = `${ORIGINALS_PREFIX}/${rel}`;
+    let storedKey;
+    try {
+      const buffer = await fs.promises.readFile(fullPath);
+      const saved = await storage.save(key, buffer);
+      storedKey = saved.key;
+    } catch (e) {
+      console.log(`  ✗ storage.save "${fullPath}": ${e.message}`);
+      continue;
+    }
+
     for (const oilsId of oilsIds) {
       try {
         const res = await db.query(
@@ -125,12 +149,12 @@ function unzipIfNeeded(inputPath) {
            VALUES ($1, $2, 0)
            ON CONFLICT (oils_id, file_path) DO NOTHING
            RETURNING id`,
-          [oilsId, fullPath],
+          [oilsId, storedKey],
         );
         if (res.rows.length) stats.linked++;
         else stats.duplicated++;
       } catch (e) {
-        console.log(`  ✗ olivs.id=${oilsId} file="${fullPath}": ${e.message}`);
+        console.log(`  ✗ olivs.id=${oilsId} file="${storedKey}": ${e.message}`);
       }
     }
   }

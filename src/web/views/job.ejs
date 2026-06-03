@@ -124,10 +124,41 @@
   });
   evt.addEventListener("done", (e) => {
     const data = JSON.parse(e.data);
+    evt.close();
+    // Якщо задача завершилась ще до того, як SSE встиг приєднатись (швидке
+    // падіння), ми могли проґавити рядки логу/зведення. Перезавантажуємо
+    // сторінку — серверний рендер дасть фінальний лог, статус і помилку.
+    if (data.status === "finished_before_subscribe") {
+      window.location.reload();
+      return;
+    }
     status.textContent = JOB_STATUS[data.status] || data.status;
     status.className = "badge badge-" + data.status;
     if (cancelForm) cancelForm.style.display = "none";
-    evt.close();
+    // failed/cancelled — підтягуємо повний лог+помилку перезавантаженням.
+    if (data.status === "failed" || data.status === "cancelled") {
+      setTimeout(() => window.location.reload(), 600);
+    }
   });
+
+  // Підстраховка: якщо SSE взагалі не приєднався (мережа/проксі ріже потік),
+  // через 3с перевіряємо фактичний статус задачі й перезавантажуємо, якщо
+  // вона вже не активна — щоб сторінка не «висіла» на «виконується».
+  let sseAlive = false;
+  evt.addEventListener("line", () => { sseAlive = true; });
+  evt.addEventListener("summary", () => { sseAlive = true; });
+  evt.addEventListener("open", () => { sseAlive = true; });
+  setTimeout(async () => {
+    if (sseAlive) return;
+    try {
+      const r = await fetch("/jobs/<%= job.id %>/status", { headers: { Accept: "application/json" } });
+      if (r.ok) {
+        const j = await r.json();
+        if (j.status && j.status !== "running" && j.status !== "pending") {
+          window.location.reload();
+        }
+      }
+    } catch (_) {}
+  }, 3000);
 </script>
 <% } %>

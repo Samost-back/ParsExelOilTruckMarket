@@ -2,6 +2,7 @@ const fs = require("fs");
 const path = require("path");
 const { TruckMarketClient } = require("../../integrations/truckmarket/client");
 const { spawnTask } = require("../tasks/spawn-task");
+const { getStorage } = require("../../shared/infra/storage");
 
 const UPLOAD_DIR = path.resolve(process.cwd(), "uploads");
 
@@ -230,7 +231,21 @@ async function companiesRoutes(fastify, { db, runner }) {
 
     if (!row) return reply.code(404).send("Не знайдено");
     const filePath = kind === "file_path" ? row.file_path : (row.processed_path || row.file_path);
-    if (!filePath || !fs.existsSync(filePath)) return reply.code(404).send("Файл відсутній");
+    if (!filePath) return reply.code(404).send("Файл відсутній");
+
+    const storage = getStorage();
+    // S3: 302 на тимчасове presigned-посилання — браузер тягне прямо з бакета,
+    // сервер не проксіює байти. Local: стрімимо файл через сервер як раніше.
+    if (storage.driver === "s3") {
+      try {
+        const url = await storage.getViewUrl(filePath);
+        return reply.redirect(url, 302);
+      } catch (e) {
+        return reply.code(404).send("Файл відсутній");
+      }
+    }
+
+    if (!(await storage.exists(filePath))) return reply.code(404).send("Файл відсутній");
     const ext = path.extname(filePath).toLowerCase();
     const mime = ext === ".png" ? "image/png"
               : ext === ".webp" ? "image/webp"
@@ -238,7 +253,7 @@ async function companiesRoutes(fastify, { db, runner }) {
               : "image/jpeg";
     reply.header("Content-Type", mime);
     reply.header("Cache-Control", "private, max-age=3600");
-    return reply.send(fs.createReadStream(filePath));
+    return reply.send(await storage.openRead(filePath));
   });
 
   // === Форма "Оновити ціни" ===

@@ -17,8 +17,11 @@ require("dotenv").config();
 const fs = require("fs");
 const path = require("path");
 const { Client } = require("pg");
+const { getStorage } = require("../../shared/infra/storage");
 
 const INTEGRATION_CODE = "ManagerIntegration";
+// Префікс storage key для оригіналів Manager-фото.
+const ORIGINALS_PREFIX = "originals/manager";
 const IMAGE_EXT = new Set([".png", ".jpg", ".jpeg", ".tif", ".tiff", ".webp"]);
 
 // Нормалізує "208"→208, "020"/"20"→20, "1000"→1000. Повертає число або null.
@@ -94,7 +97,10 @@ function walk(dir, brand, type, out) {
     if (!byArticul.has(key)) byArticul.set(key, []);
     byArticul.get(key).push(r);
   }
-  console.log(`✓ Manager-олив у БД: ${rows.length}\n`);
+  console.log(`✓ Manager-олив у БД: ${rows.length}`);
+
+  const storage = getStorage();
+  console.log(`✓ Storage: driver=${storage.driver}, key-prefix="${ORIGINALS_PREFIX}/"\n`);
 
   const stats = { linked: 0, dup: 0, matched: 0, unmatched: [], brandMismatch: [] };
 
@@ -124,13 +130,25 @@ function walk(dir, brand, type, out) {
       stats.brandMismatch.push({ file: f.name, folderBrand: f.brand, dbBrand: match.oil.brand });
     }
 
+    // Зберігаємо оригінал у сховище під key (бренд/тип/файл) і пишемо key в БД.
+    const rel = path.relative(root, f.full).split(path.sep).join("/");
+    const key = `${ORIGINALS_PREFIX}/${rel}`;
+    let storedKey;
+    try {
+      const buffer = await fs.promises.readFile(f.full);
+      storedKey = (await storage.save(key, buffer)).key;
+    } catch (e) {
+      console.log(`  ✗ storage.save "${f.name}": ${e.message}`);
+      continue;
+    }
+
     try {
       const res = await db.query(
         `INSERT INTO oils_images (oils_id, file_path, sort_order)
          VALUES ($1, $2, 0)
          ON CONFLICT (oils_id, file_path) DO NOTHING
          RETURNING id`,
-        [match.oil.id, f.full],
+        [match.oil.id, storedKey],
       );
       if (res.rows.length) stats.linked++; else stats.dup++;
     } catch (e) {

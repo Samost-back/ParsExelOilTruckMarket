@@ -1,10 +1,26 @@
 import { describe, it, expect } from "vitest";
+const fs = require("fs");
+const os = require("os");
+const path = require("path");
+const xlsx = require("xlsx");
 const {
   parseManagerSheet,
+  readManagerSheet,
   extractSAE,
   mapTypeOil,
   syntheticArticul,
 } = require("../../src/parser/manager/parse");
+
+// Пише тимчасовий .xlsx із заданими аркушами (назва → масив рядків).
+function writeXlsx(sheets) {
+  const wb = xlsx.utils.book_new();
+  for (const [name, rows] of Object.entries(sheets)) {
+    xlsx.utils.book_append_sheet(wb, xlsx.utils.aoa_to_sheet(rows), name);
+  }
+  const p = path.join(os.tmpdir(), `mgr_${process.pid}_${Math.round(performance.now())}.xlsx`);
+  xlsx.writeFile(wb, p);
+  return p;
+}
 
 // Заголовок аркуша Daf.
 const HEADER = ["Заголовок", "Бренд", "Застосування", "Група", "Специфікації", "Упаковка л", "Артикул", "Ціна"];
@@ -117,5 +133,26 @@ describe("Manager helpers", () => {
     expect(mapTypeOil("Напівсинтетична")).toBe("напівсинтетичне");
     expect(mapTypeOil("мінеральне")).toBe("мінеральне");
     expect(mapTypeOil("")).toBeNull();
+  });
+});
+
+describe("readManagerSheet — вибір аркуша", () => {
+  it("бере аркуш 'Daf' коли він є", () => {
+    const p = writeXlsx({ "Лист1": [["x"]], "Daf": [["A"], ["B"]] });
+    const rows = readManagerSheet(p, "Daf");
+    expect(rows).toEqual([["A"], ["B"]]);
+    fs.unlinkSync(p);
+  });
+
+  it("регістронезалежно: 'DAF' теж знаходить", () => {
+    const p = writeXlsx({ "DAF": [["Z"]] });
+    expect(readManagerSheet(p, "Daf")).toEqual([["Z"]]);
+    fs.unlinkSync(p);
+  });
+
+  it("якщо 'Daf' немає — бере ПЕРШУ сторінку", () => {
+    const p = writeXlsx({ "Прайс": [["first"]], "Інше": [["second"]] });
+    expect(readManagerSheet(p, "Daf")).toEqual([["first"]]);
+    fs.unlinkSync(p);
   });
 });

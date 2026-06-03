@@ -15,7 +15,26 @@ const authPlugin = require("./plugins/auth");
 const viewHelpers = require("./view-helpers");
 
 async function buildServer() {
-  const fastify = Fastify({ logger: { level: process.env.LOG_LEVEL || "info" } });
+  // trustProxy — ОБОВ'ЯЗКОВО на prod за reverse-proxy (HTTPS-термінація на
+  // nginx/Caddy/Traefik). Дозволяє Fastify довіряти X-Forwarded-* (Proto/For),
+  // щоб req.protocol був "https" і secure-cookie виставлялись коректно.
+  // TRUST_PROXY: "true"/"false" або кількість проксі-хопів / список IP.
+  const trustProxyEnv = process.env.TRUST_PROXY;
+  const trustProxy =
+    trustProxyEnv === undefined
+      ? process.env.NODE_ENV === "production" // дефолт: увімкнено на prod
+      : trustProxyEnv === "true"
+        ? true
+        : trustProxyEnv === "false"
+          ? false
+          : /^\d+$/.test(trustProxyEnv)
+            ? parseInt(trustProxyEnv, 10)
+            : trustProxyEnv; // список IP/CIDR через кому
+
+  const fastify = Fastify({
+    logger: { level: process.env.LOG_LEVEL || "info" },
+    trustProxy,
+  });
 
   // 1. DB pool — share через все приложение, SSE не блокує інші запити.
   const db = getPool();

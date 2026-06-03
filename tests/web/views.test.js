@@ -338,6 +338,58 @@ describe("import.ejs — форма з опціональним xlsx", () => {
     expect(html).toContain("Як це працює");
     expect(html).toContain("тільки прайс, або тільки фото");
   });
+
+  it("перемикач режиму: дві кнопки 'Додати нову' / 'Оновити наявну'", async () => {
+    const html = await render("import.ejs", ctx);
+    expect(html).toContain("mode-switch");
+    expect(html).toContain("Додати нову компанію");
+    expect(html).toContain("Оновити наявну");
+    expect(html).toContain('name="mode"');
+  });
+
+  it("режим 'Додати': текстове поле нової компанії (companyNew)", async () => {
+    const html = await render("import.ejs", ctx);
+    expect(html).toContain('name="companyNew"');
+    expect(html).toContain('id="companyInput"');
+  });
+
+  it("'Оновити' показує ЛИШЕ вибір компанії: інтеграція/місто/країна — add-only", async () => {
+    const html = await render("import.ejs", ctx);
+    // поле інтеграції позначене як add-блок (ховається в update)
+    expect(html).toMatch(/data-mode-block="add"[^>]*>\s*<span class="field-label">Інтеграція/);
+    // місто й країна теж add-only
+    const cityBlock = html.match(/<label[^>]*data-field="city"[^>]*>/)[0];
+    const countryBlock = html.match(/<label[^>]*data-field="country"[^>]*>/)[0];
+    expect(cityBlock).toContain('data-mode-block="add"');
+    expect(countryBlock).toContain('data-mode-block="add"');
+    // блок вибору наявної компанії — update-only
+    const updCompany = html.match(/<label[^>]*data-mode-block="update"[^>]*>/)[0];
+    expect(updCompany).toContain('data-field="company"');
+  });
+
+  it("без компаній — кнопка 'Оновити наявну' disabled", async () => {
+    const html = await render("import.ejs", { ...ctx, companies: [] });
+    const updBtn = html.match(/<button[^>]*data-mode="update"[^>]*>/)[0];
+    expect(updBtn).toContain("disabled");
+  });
+
+  it("з компаніями — dropdown наявних (companyExisting) з опціями", async () => {
+    const html = await render("import.ejs", {
+      ...ctx,
+      companies: [
+        { name_company: "EUROLUB", country: "DE", xlsx_path: null, xlsx_at: null, photos_dir: null, photos_at: null },
+        { name_company: "Manager", country: null, xlsx_path: null, xlsx_at: null, photos_dir: null, photos_at: null },
+      ],
+    });
+    expect(html).toContain('name="companyExisting"');
+    expect(html).toContain('id="companySelect"');
+    // обидві компанії як опції
+    expect(html).toContain('value="EUROLUB"');
+    expect(html).toContain('value="Manager"');
+    // кнопка 'Оновити' НЕ disabled, коли компанії є
+    const updBtn = html.match(/<button[^>]*data-mode="update"[^>]*>/)[0];
+    expect(updBtn).not.toContain("disabled");
+  });
 });
 
 describe("company.ejs — редагування компанії", () => {

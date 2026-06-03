@@ -23,13 +23,18 @@ const { Client } = require("pg");
 const CFG = require("./template-config.cjs");
 const { buildPlatesSvg } = require("./plates.cjs");
 const PLATE_POS = require("./plate-positions.cjs");
+const { getStorage } = require("../../shared/infra/storage");
+
+// Префікс storage key для оброблених фото. У БД зберігаємо саме key
+// ("processed/tm_<articul>.jpg"), а не абсолютний шлях — щоб однаково
+// працювало на local і S3.
+const PROCESSED_PREFIX = "processed";
 
 // Об'єм (208 л) йде з комбінезоном — як COVERALL_FROM_VOLUME у парсері.
 const COVERALL_VOLUME = 208;
 
 const COUNTRY_FALLBACK = "Німеччина";
 const TEMPLATES_DIR = path.resolve(__dirname, "..", "browser-tool", "templates");
-const OUTPUT_ROOT = path.resolve(__dirname, "..", "..", "..", "photos_storage", "processed");
 
 // === допоміжне ===
 
@@ -66,8 +71,9 @@ async function findTemplateFile(name, suffix = "") {
 
 // Видаляє білий фон (alpha=0 для пікселів, де R,G,B >= threshold)
 // і повертає { buffer, bbox } — PNG-буфер з прозорим фоном і bbox непрозорих пікселів.
-async function removeWhiteBgAndBbox(inputPath, threshold) {
-  const img = sharp(inputPath).ensureAlpha();
+// input — Buffer вихідного зображення (читається через storage-адаптер).
+async function removeWhiteBgAndBbox(input, threshold) {
+  const img = sharp(input).ensureAlpha();
   const meta = await img.metadata();
   const W = meta.width, H = meta.height;
   const { data } = await img.raw().toBuffer({ resolveWithObject: true });
@@ -114,7 +120,18 @@ function escapeXml(s) {
   }[c]));
 }
 
-async function processOne({ srcPath, articul, packagingVolume, nameTypeOil, country, outDir, noCountry = false }) {
+// Збирає readable-stream (local fs або S3 Body) у Buffer для sharp.
+function streamToBuffer(stream) {
+  if (Buffer.isBuffer(stream)) return Promise.resolve(stream);
+  return new Promise((resolve, reject) => {
+    const chunks = [];
+    stream.on("data", (c) => chunks.push(c));
+    stream.on("end", () => resolve(Buffer.concat(chunks)));
+    stream.on("error", reject);
+  });
+}
+
+async function processOne({ srcPath, articul, packagingVolume, nameTypeOil, country, noCountry = false }) {
   const mapping = resolveMappingFromDb(packagingVolume, nameTypeOil);
   if (!mapping) {
     return { status: "skipped", error: `немає об'єму в БД (packaging_volume=${packagingVolume})` };
@@ -129,8 +146,13 @@ async function processOne({ srcPath, articul, packagingVolume, nameTypeOil, coun
   if (!tplFile) {
     return { status: "skipped", error: `файл шаблона ${tplName}.{${CFG.TEMPLATE_EXTS.join("|")}} відсутній` };
   }
-  if (!fs.existsSync(srcPath)) {
-    return { status: "failed", error: `вихідний файл не існує: ${srcPath}` };
+  // Вихідне фото читаємо через storage-адаптер (key для s3 / легасі-шлях для local).
+  let srcBuffer;
+  try {
+    const stream = await getStorage().openRead(srcPath);
+    srcBuffer = await streamToBuffer(stream);
+  } catch (e) {
+    return { status: "failed", error: `вихідний файл недоступний: ${srcPath} (${e.message})` };
   }
 
   const pos = CFG.TEMPLATES[tplName];
@@ -139,7 +161,7 @@ async function processOne({ srcPath, articul, packagingVolume, nameTypeOil, coun
 
   let barrelPng, bbox;
   try {
-    const r = await removeWhiteBgAndBbox(srcPath, CFG.BG_REMOVAL.whiteThreshold || 245);
+    const r = await removeWhiteBgAndBbox(srcBuffer, CFG.BG_REMOVAL.whiteThreshold || 245);
     barrelPng = r.buffer; bbox = r.bbox;
   } catch (e) {
     return { status: "failed", error: `bg-remove: ${e.message}` };
@@ -161,8 +183,8 @@ async function processOne({ srcPath, articul, packagingVolume, nameTypeOil, coun
   const offsetX = Math.round(pos.left + (pos.width - fittedW) / 2);
   const offsetY = Math.round(pos.top + (pos.height - fittedH) / 2);
 
-  if (!fs.existsSync(outDir)) fs.mkdirSync(outDir, { recursive: true });
-  const outPath = path.join(outDir, `tm_${articul}.jpg`);
+  // storage key (не абсолютний шлях) — те, що піде в processed_path.
+  const outKey = `${PROCESSED_PREFIX}/tm_${articul}.jpg`;
 
   // Порядок шарів важливий: 1) шаблон → 2) білий прямокутник (overlay svg містить його перед текстом) → 3) бочка → 4) текст
   // Але SVG в одному шарі містить і прямокутник, і текст — тому композимо: tpl → svgRect → barrel → svgText.
@@ -214,18 +236,19 @@ async function processOne({ srcPath, articul, packagingVolume, nameTypeOil, coun
   if (platesSvg) layers.push({ input: platesSvg, top: 0, left: 0 });
 
   try {
-    await sharp(tplFile)
+    const buffer = await sharp(tplFile)
       .composite(layers)
       // chromaSubsampling 4:4:4 — без зменшення кольорової роздільності, інакше
       // кольорові написи (літраж/комбінезон) розмиваються. mozjpeg — кращий за
       // якістю при тому ж розмірі.
       .jpeg({ quality: CFG.JPG_QUALITY, chromaSubsampling: "4:4:4", mozjpeg: true })
-      .toFile(outPath);
+      .toBuffer();
+    await getStorage().save(outKey, buffer);
   } catch (e) {
     return { status: "failed", error: `composite: ${e.message}` };
   }
 
-  return { status: "done", outPath, tpl: tplName };
+  return { status: "done", outKey, tpl: tplName };
 }
 
 // === main ===
@@ -244,7 +267,7 @@ async function processOne({ srcPath, articul, packagingVolume, nameTypeOil, coun
   console.log("✓ DB connected");
   console.log(`✓ Країна: з company_olivs.country (fallback="${COUNTRY_FALLBACK}")`);
   console.log(`✓ Templates: ${TEMPLATES_DIR}`);
-  console.log(`✓ Output:    ${OUTPUT_ROOT}`);
+  console.log(`✓ Storage:   driver=${getStorage().driver}, key-prefix="${PROCESSED_PREFIX}/"`);
   console.log(`✓ Режим: ${reprocess ? "REPROCESS (всі)" : "тільки pending"}${LIMIT ? `, limit=${LIMIT}` : ""}\n`);
 
   const sql = `
@@ -278,21 +301,20 @@ async function processOne({ srcPath, articul, packagingVolume, nameTypeOil, coun
         country: r.company_country || COUNTRY_FALLBACK,
         // Manager — фото без назви країни на бочці.
         noCountry: r.integration_code === "ManagerIntegration",
-        outDir: OUTPUT_ROOT,
       });
     } catch (e) {
       res = { status: "failed", error: `unexpected: ${e.message}` };
     }
 
     if (res.status === "done") {
-      console.log(`  ✓ ${head} → ${res.tpl} → ${path.basename(res.outPath)}`);
+      console.log(`  ✓ ${head} → ${res.tpl} → ${res.outKey}`);
       stats.done++;
       await db.query(
         `UPDATE oils_images
             SET processed_path = $1, processed_status = 'done',
                 processed_error = NULL, processed_at = NOW()
           WHERE id = $2`,
-        [res.outPath, r.id],
+        [res.outKey, r.id],
       );
     } else if (res.status === "skipped") {
       console.log(`  ⊘ ${head} skip — ${res.error}`);

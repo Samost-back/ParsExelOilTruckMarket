@@ -1,8 +1,8 @@
-const fs = require("fs");
 const path = require("path");
 const FormData = require("form-data");
 const { HttpClient } = require("../../shared/infra/http-client");
 const { TruckTokenProvider } = require("./truck-token-provider");
+const { getStorage } = require("../../shared/infra/storage");
 
 // Тонкий API-клієнт TruckMarket. Знає тільки про ендпоінти, transport-логіку
 // делегує HttpClient (DRY: retry-on-401, validateStatus, timeout).
@@ -63,12 +63,14 @@ class TruckMarketClient {
   }
 
   // Завантаження одного фото. TruckMarket робить ГОЛОВНИМ перше залите.
+  // filePath — storage key (s3) або легасі-абсолютний шлях (local); читаємо
+  // через storage-адаптер, тож працює однаково для обох backend'ів.
   async uploadListingImage(listingId, filePath) {
     if (!listingId) throw new Error("uploadListingImage: listingId required");
-    if (!fs.existsSync(filePath)) throw new Error(`uploadListingImage: file not found: ${filePath}`);
 
+    const stream = await getStorage().openRead(filePath);
     const form = new FormData();
-    form.append("file", fs.createReadStream(filePath), {
+    form.append("file", stream, {
       filename: path.basename(filePath),
       contentType: "image/jpeg",
     });

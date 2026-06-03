@@ -10,7 +10,8 @@ DB      ?= db
 .DEFAULT_GOAL := help
 .PHONY: help up down restart build logs ps sh psql \
         migrate seed-integrations init create-user \
-        test backup-db wipe-data
+        test backup-db wipe-data export-json \
+        deploy wait-healthy
 
 help: ## Показати список команд
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | \
@@ -50,6 +51,28 @@ seed-integrations: ## Додати базові інтеграції (EUROLUB, M
 
 init: up migrate seed-integrations ## Підняти стек + міграції + базові інтеграції
 
+## ---- Деплой ----
+wait-healthy: ## Чекати поки app стане healthy (до ~90с)
+	@echo "⏳ Чекаю app healthy..."
+	@for i in $$(seq 1 30); do \
+	  st=$$($(COMPOSE) ps -q $(APP) | xargs -r docker inspect --format '{{.State.Health.Status}}' 2>/dev/null); \
+	  echo "  $$st"; \
+	  [ "$$st" = "healthy" ] && exit 0; \
+	  sleep 3; \
+	done; \
+	echo "✗ app не став healthy"; exit 1
+
+deploy: ## Повний деплой однією командою: build → up (з HTTPS/Caddy) → міграції → seed
+	@test -f .env || (echo "✗ Немає .env — скопіюйте .env.example і заповніть"; exit 1)
+	$(COMPOSE) build
+	$(COMPOSE) up -d
+	@$(MAKE) wait-healthy
+	@$(MAKE) migrate
+	@$(MAKE) seed-integrations
+	@echo ""
+	@echo "✓ Деплой завершено. HTTPS: https://$$(grep -E '^APP_DOMAIN=' .env | cut -d= -f2-)"
+	@echo "  Якщо ще немає користувача: make create-user U=admin P=<пароль>"
+
 create-user: ## Створити веб-користувача: make create-user U=admin P=secret123
 	@test -n "$(U)" && test -n "$(P)" || (echo "Вкажіть U=<логін> P=<пароль>"; exit 1)
 	$(COMPOSE) exec $(APP) node src/web/cli/create-user.js "$(U)" "$(P)"
@@ -57,6 +80,14 @@ create-user: ## Створити веб-користувача: make create-user
 backup-db: ## Дамп БД у backup.sql (на хості)
 	$(COMPOSE) exec -T $(DB) sh -c 'pg_dump -U $$POSTGRES_USER $$POSTGRES_DB' > backup.sql
 	@echo "✓ backup.sql"
+
+export-json: ## Експорт усіх таблиць БД у JSON: make export-json [OUT=db-export.json]
+# MSYS_NO_PATHCONV=1 — вимикає конвертацію /app у Windows-шлях у Git Bash на Windows
+# (на Linux/macOS змінна ігнорується, тож команда крос-платформна).
+	MSYS_NO_PATHCONV=1 $(COMPOSE) cp scripts/export-db-json.js $(APP):/app/scripts/export-db-json.js
+	MSYS_NO_PATHCONV=1 $(COMPOSE) exec -e EXPORT_AT="$$(date -u +%Y-%m-%dT%H:%M:%SZ)" $(APP) node scripts/export-db-json.js /app/db-export.json
+	MSYS_NO_PATHCONV=1 $(COMPOSE) cp $(APP):/app/db-export.json $(or $(OUT),db-export.json)
+	@echo "✓ $(or $(OUT),db-export.json)"
 
 ## ---- Розробка ----
 test: ## Запустити тести (на хості)
