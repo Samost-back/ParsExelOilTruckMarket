@@ -81,6 +81,11 @@ backup-db: ## Дамп БД у backup.sql (на хості)
 	$(COMPOSE) exec -T $(DB) sh -c 'pg_dump -U $$POSTGRES_USER $$POSTGRES_DB' > backup.sql
 	@echo "✓ backup.sql"
 
+wipe-data: ## Стерти оливи/фото/ціни/компанії/задачі (лишити юзерів+інтеграції+промпти). Підтвердження: CONFIRM=yes
+	@test "$(CONFIRM)" = "yes" || (echo "⚠ Це зітре всі робочі дані. Запустіть: make wipe-data CONFIRM=yes"; exit 1)
+	$(COMPOSE) exec $(APP) node database/run-sql.js database/seeds/wipe_data.sql
+	@echo "✓ Дані стерто (web_users, integrations, ai_prompts збережено)"
+
 export-json: ## Експорт усіх таблиць БД у JSON: make export-json [OUT=db-export.json]
 # MSYS_NO_PATHCONV=1 — вимикає конвертацію /app у Windows-шлях у Git Bash на Windows
 # (на Linux/macOS змінна ігнорується, тож команда крос-платформна).
