@@ -51,6 +51,15 @@ class TruckMarketClient {
     return id;
   }
 
+  // Читає дані одного оголошення (для діагностики/перевірки полів).
+  getListingData(listingId) {
+    if (!listingId) throw new Error("getListingData: listingId required");
+    return this.http.send({
+      method: "GET",
+      path: `/intapi/v1/listings/data/${listingId}`,
+    });
+  }
+
   // Оновлення оголошення. data — об'єкт з полями що змінюються (price, descr, ...).
   // Якщо TM віддасть 404 — endpoint неправильний (треба перевірити документацію).
   updateListing(listingId, data) {
