@@ -26,5 +26,12 @@ Thumbs.db
 tmp
 .tmp
 
+# Dev-артефакти — не потрібні в runtime-образі
+tests
+coverage
+.nyc_output
+vitest.config.js
+Makefile
+
 *.md
 README*
