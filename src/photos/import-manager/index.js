@@ -130,9 +130,12 @@ function walk(dir, brand, type, out) {
       stats.brandMismatch.push({ file: f.name, folderBrand: f.brand, dbBrand: match.oil.brand });
     }
 
-    // Зберігаємо оригінал у сховище під key (бренд/тип/файл) і пишемо key в БД.
-    const rel = path.relative(root, f.full).split(path.sep).join("/");
-    const key = `${ORIGINALS_PREFIX}/${rel}`;
+    // Дві окремі відповідальності (див. import/index.js):
+    //   source_name — ІДЕНТИЧНІСТЬ (ім'я файлу = <артикул><об'єм>) → дедуп по ньому.
+    //   key (= file_path) — МІСЦЕ в сховищі. Раніше дедуп був по шляху з папками
+    //   бренд/тип → повтор з іншої папки давав дублі. Тепер дедуп по source_name.
+    const sourceName = path.basename(f.full);
+    const key = `${ORIGINALS_PREFIX}/${sourceName}`;
     let storedKey;
     try {
       const buffer = await fs.promises.readFile(f.full);
@@ -144,11 +147,11 @@ function walk(dir, brand, type, out) {
 
     try {
       const res = await db.query(
-        `INSERT INTO oils_images (oils_id, file_path, sort_order)
-         VALUES ($1, $2, 0)
-         ON CONFLICT (oils_id, file_path) DO NOTHING
+        `INSERT INTO oils_images (oils_id, file_path, source_name, sort_order)
+         VALUES ($1, $2, $3, 0)
+         ON CONFLICT (oils_id, source_name) DO NOTHING
          RETURNING id`,
-        [match.oil.id, storedKey],
+        [match.oil.id, storedKey, sourceName],
       );
       if (res.rows.length) stats.linked++; else stats.dup++;
     } catch (e) {

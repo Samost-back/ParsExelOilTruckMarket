@@ -126,12 +126,15 @@ function unzipIfNeeded(inputPath) {
     stats.matched_files++;
     if (oilsIds.length > 1) stats.multi_match++;
 
-    // Зберігаємо оригінал у сховище під стабільним key. На local це означає
-    // копію в photos_storage/originals/<rel>; на s3 — об'єкт у бакеті. У БД
-    // лягає key, а не абсолютний шлях — однаково для обох backend'ів.
-    // <rel> — шлях відносно кореня архіву (унікальний у межах батча).
-    const rel = path.relative(rootDir, fullPath).split(path.sep).join("/");
-    const key = `${ORIGINALS_PREFIX}/${rel}`;
+    // Дві окремі відповідальності:
+    //   source_name — ІДЕНТИЧНІСТЬ фото (ім'я файлу = артикул). Дедуп іде саме
+    //     по ньому: UNIQUE(oils_id, source_name). Стабільна між імпортами.
+    //   key (= file_path) — МІСЦЕ в сховищі (originals/<файл>).
+    // Раніше дедуп був по file_path (шляху): та сама фотка з іншої/переназваної
+    // папки давала інший шлях → дедуп не спрацьовував → дублі. Тепер шлях можна
+    // вільно міняти (міграція сховища), дедуп на source_name не зачепиться.
+    const sourceName = path.basename(fullPath);
+    const key = `${ORIGINALS_PREFIX}/${sourceName}`;
     let storedKey;
     try {
       const buffer = await fs.promises.readFile(fullPath);
@@ -145,11 +148,11 @@ function unzipIfNeeded(inputPath) {
     for (const oilsId of oilsIds) {
       try {
         const res = await db.query(
-          `INSERT INTO public.oils_images (oils_id, file_path, sort_order)
-           VALUES ($1, $2, 0)
-           ON CONFLICT (oils_id, file_path) DO NOTHING
+          `INSERT INTO public.oils_images (oils_id, file_path, source_name, sort_order)
+           VALUES ($1, $2, $3, 0)
+           ON CONFLICT (oils_id, source_name) DO NOTHING
            RETURNING id`,
-          [oilsId, storedKey],
+          [oilsId, storedKey, sourceName],
         );
         if (res.rows.length) stats.linked++;
         else stats.duplicated++;
