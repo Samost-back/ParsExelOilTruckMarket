@@ -21,17 +21,13 @@ const path = require("path");
 const sharp = require("sharp");
 const { Client } = require("pg");
 const CFG = require("./template-config.cjs");
-const { buildPlatesSvg, buildPlateItems } = require("./plates.cjs");
-const PLATE_POS = require("./plate-positions.cjs");
+const { buildCountryLabelSvg } = require("./plates.cjs");
 const { getStorage } = require("../../shared/infra/storage");
 
 // Префікс storage key для оброблених фото. У БД зберігаємо саме key
 // ("processed/tm_<articul>.jpg"), а не абсолютний шлях — щоб однаково
 // працювало на local і S3.
 const PROCESSED_PREFIX = "processed";
-
-// Об'єм (208 л) йде з комбінезоном — як COVERALL_FROM_VOLUME у парсері.
-const COVERALL_VOLUME = 208;
 
 const COUNTRY_FALLBACK = "Німеччина";
 const TEMPLATES_DIR = path.resolve(__dirname, "..", "browser-tool", "templates");
@@ -194,49 +190,21 @@ async function processOne({ srcPath, articul, packagingVolume, nameTypeOil, coun
       `<rect x="${pos.left}" y="${pos.top}" width="${pos.width}" height="${pos.height}" fill="#ffffff"/>` +
     `</svg>`, "utf-8");
 
-  // Векторні плашки справа: замальовуємо весь блок растрових плашок білим і
-  // малюємо чіткі SVG-плашки. Manager (noCountry) — ТІЛЬКИ літраж (без
-  // комбінезона й країни). Інші — об'єм + комбінезон (208 л) + країна.
-  // Послідовність зверху вниз: [Об'єм] → [Комбінезон?] → [Країна?].
-  const pp = PLATE_POS[tplName];
+  // Плашки об'єму й комбінезона ВЖЕ намальовані в самому шаблоні — ми їх НЕ
+  // перемальовуємо і НЕ накриваємо білим. Додаємо ЛИШЕ назву країни білим
+  // текстом у прямокутник pos.country (готові координати з template-config —
+  // ті самі, що й у browser-tool). Manager (noCountry) — без країни.
+  const countryBox = pos.country;
   let platesSvg = null;
-  let plateCover = null;
-  if (pp) {
-    const volLabel = mapping.unit === "kg"
-      ? `${String(mapping.value).replace(/\s*кг$/i, "")} кг`
-      : `${String(mapping.value).replace(/\s*л$/i, "")} л`;
-    // Які плашки малювати — чиста логіка в plates.cjs (тестована).
-    // Manager (noCountry) → ТІЛЬКИ об'єм; інші → об'єм + комбінезон + країна.
-    const { items, nextTop, step } = buildPlateItems({
-      pp, volLabel, country, packagingVolume,
-      coverallVolume: COVERALL_VOLUME, noCountry,
-    });
-
-    platesSvg = buildPlatesSvg(canvasW, canvasH, items);
-    // Білий прямокутник, що накриває ВСЮ стару зону вшитих у шаблон плашок
-    // (об'єм + комбінезон + країна), з хвостами стрілок зліва.
-    // ВАЖЛИВО: накриваємо зону під МАКСИМУМ 3 плашки (а не лише ті, що малюємо),
-    // інакше для Manager (лише об'єм) вшиті в шаблон "Комбінезон"/"Країна"
-    // лишаються видимими нижче короткого cover'а.
-    const MAX_PLATES = 3;
-    const coverX = Math.max(0, pp.left - Math.round(pp.height * 1.2) - 6);
-    const coverY = Math.max(0, pp.top - 4);
-    const coverW = canvasW - coverX;
-    // знизу додаємо ще step запасу, щоб точно стерти нижній край останньої плашки
-    const coverBottom = pp.top + MAX_PLATES * step + step;
-    const coverH = coverBottom - coverY;
-    plateCover = Buffer.from(
-      `<svg xmlns="http://www.w3.org/2000/svg" width="${canvasW}" height="${canvasH}">` +
-        `<rect x="${coverX}" y="${coverY}" width="${coverW}" height="${coverH}" fill="#ffffff"/>` +
-      `</svg>`, "utf-8");
+  if (countryBox && !noCountry && country) {
+    platesSvg = buildCountryLabelSvg(canvasW, canvasH, country, countryBox, CFG.COUNTRY_TEXT);
   }
 
-  // Шари: шаблон → білий під бочкою → бочка → (білий під плашками) → SVG-плашки.
+  // Шари: шаблон → білий під бочкою → бочка → (лише) назва країни.
   const layers = [
     { input: svgRect, top: 0, left: 0 },
     { input: fitted.data, top: offsetY, left: offsetX },
   ];
-  if (plateCover) layers.push({ input: plateCover, top: 0, left: 0 });
   if (platesSvg) layers.push({ input: platesSvg, top: 0, left: 0 });
 
   try {

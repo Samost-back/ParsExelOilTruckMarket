@@ -76,4 +76,32 @@ function buildPlateItems({ pp, volLabel, country, packagingVolume, coverallVolum
   return { items, nextTop, step };
 }
 
-module.exports = { buildPlatesSvg, plateSvg, PLATE, buildPlateItems };
+// Назва країни білим текстом у прямокутнику rect (= pos.country з конфіга).
+// Повторює логіку browser-tool drawCountryText: розмір шрифту = rect.height *
+// heightRatio (дефолт 0.78), ліва прив'язка від rect.left, вертикально по
+// центру rect. Жодних «плашок» не малюємо — вони вже є в шаблоні.
+function countryLabelSvg(label, rect, textCfg = {}) {
+  const heightRatio = typeof textCfg.heightRatio === "number" ? textCfg.heightRatio : 0.78;
+  const fontSize = Math.max(6, rect.height * heightRatio);
+  const color = textCfg.color || "#ffffff";
+  const fontFamily = textCfg.fontFamily || PLATE.fontFamily;
+  const fontWeight = textCfg.fontWeight || PLATE.fontWeight;
+  const y = rect.top + rect.height / 2;
+  return (
+    `<text x="${rect.left}" y="${y}" font-family="${fontFamily}" ` +
+    `font-weight="${fontWeight}" font-size="${fontSize}" fill="${color}" ` +
+    `dominant-baseline="central" text-anchor="start">${escapeXml(label)}</text>`
+  );
+}
+
+// Повний SVG-оверлей лише з назвою країни (білим) для канви canvasW×canvasH.
+function buildCountryLabelSvg(canvasW, canvasH, label, rect, textCfg) {
+  return Buffer.from(
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${canvasW}" height="${canvasH}">` +
+      countryLabelSvg(label, rect, textCfg) +
+    `</svg>`,
+    "utf-8",
+  );
+}
+
+module.exports = { buildPlatesSvg, plateSvg, PLATE, buildPlateItems, countryLabelSvg, buildCountryLabelSvg };
