@@ -11,9 +11,13 @@
 #   - додає X-Forwarded-Proto/For (Fastify trustProxy робить cookie Secure).
 
 {$APP_DOMAIN} {
-	# Розмір завантаження (прайс/папка фото). Узгоджено з MAX_UPLOAD_BYTES.
+	# Розмір завантаження (прайс/папка фото).
+	# УВАГА: це ліміт на ВЕСЬ запит, а не на окремий файл. Папка з фото
+	# заливається одним multipart-запитом, тому 512MB не вистачало —
+	# батч на 708 файлів важить ~1.9 GB і обривався десь на 27%.
+	# MAX_UPLOAD_BYTES у .env — окремий ліміт, він діє НА ФАЙЛ (Fastify).
 	request_body {
-		max_size 512MB
+		max_size 4GB
 	}
 
 	reverse_proxy app:3000 {

@@ -71,3 +71,8 @@ desktop.ini
 # === IDE ===
 # Workspace-файл містить локальні шляхи конкретної машини (напр. ../Desktop/...)
 *.code-workspace
+
+# === Docker ===
+# Локальний dev-оверрайд (NODE_ENV=development, публікація порту 3000).
+# На prod він ламає Secure-cookie за HTTPS, тому в репозиторії його не тримаємо.
+docker-compose.override.yml
