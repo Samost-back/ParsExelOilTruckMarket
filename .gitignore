@@ -67,3 +67,7 @@ coverage/
 # === OS ===
 *~
 desktop.ini
+
+# === IDE ===
+# Workspace-файл містить локальні шляхи конкретної машини (напр. ../Desktop/...)
+*.code-workspace

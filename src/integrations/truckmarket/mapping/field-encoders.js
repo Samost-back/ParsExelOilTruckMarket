@@ -33,11 +33,20 @@ const FIELD_ENCODERS = {
   "Низький рівень SAPS":    { kind: "select", read: (r) => (r.low_level_saps == null ? null : r.low_level_saps) },
   "Об'єм упаковки, л":      { kind: "select", read: (r) => (r.packaging_volume == null ? null : Number(r.packaging_volume)) },
   "Об'єм упаковки, кг":     { kind: "select", read: (r) => (r.packaging_volume == null ? null : Number(r.packaging_volume)) },
+  // Тип основи мастила (4253/f4) — те саме джерело, що й "Тип оливи".
+  // Наразі поле в TRUCKMARKET_IGNORED_FIELDS: парсер не заповнює type_oil для мастил.
+  "Тип основи":             { kind: "select", read: (r) => r.type_oil },
   "Артикул":                { kind: "text",   read: (r) => r.articul },
   "Допуски виробників":     { kind: "text",   read: (r) => r.manufacturers_tolerances },
   "ACEA":                   { kind: "text",   read: (r) => joinIfArray(r.acea) },
   "API":                    { kind: "text",   read: (r) => joinIfArray(r.api) },
-  "Стандарт DOT":           { kind: "text",   read: (r) => r.dot },
+  // DOT — select, а не text: TruckMarket очікує id опції, і вони НЕ збігаються
+  // з номером стандарту (DOT 4 = 1, DOT 3 = 3). Див. DOT_OPTIONS_BRAKE.
+  "Стандарт DOT":           { kind: "select", read: (r) => r.dot },
+  // Стандарт охолоджуючої рідини (4269/f1) — з olivs.standart_g ("G11", "G12+").
+  "Стандарт G":             { kind: "select", read: (r) => r.standart_g },
+  // Готовність (4269/f3) — джерела в БД поки немає, поле в IGNORED_FIELDS.
+  "Готовність":             { kind: "select", read: () => null },
   "Марки авто":             { kind: "bitmask", read: (r) => r.car_brand },
   // Бренд → джерело правди olivs.brand (його ставить інтеграція: для EUROLUB
   // це 'EUROLUB' з назви). Якщо порожній — fallback на company_olivs.name_company.

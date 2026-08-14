@@ -8,6 +8,22 @@ const { encode } = require("./field-encoders");
 
 const PRICE_CURR_UAH = 1;
 
+// Фасування 208 л комплектується комбінезоном (парсер дописує "+Комбінезон"
+// до назви — див. COVERALL_FROM_VOLUME у src/parser/constants.js).
+// Його вартість не входить у прайсову ціну, тому додаємо при передачі на TM.
+const COVERALL_VOLUME = 208;
+const COVERALL_SURCHARGE_UAH = 800;
+
+// Ціна для TruckMarket: прайсова + надбавка за комбінезон, якщо він у комплекті.
+// Ознака комбінезона — саме мітка в назві, а не сам об'єм: якщо для якоїсь
+// позиції на 208 л комбінезон не передбачений, надбавки не буде.
+function resolvePrice(row) {
+  if (row.price == null) return row.price;
+  const hasCoverall = Number(row.packaging_volume) === COVERALL_VOLUME
+    && /Комбінезон/i.test(String(row.name || ""));
+  return hasCoverall ? Number(row.price) + COVERALL_SURCHARGE_UAH : row.price;
+}
+
 // Людський префікс типу для заголовка оголошення.
 const TYPE_TITLE_PREFIX = {
   "моторне оливо": "Моторна олива",
@@ -75,7 +91,7 @@ function buildListingPayload(row, { description = "", geoCityId = null } = {}) {
     geo_city: geoCityId != null ? geoCityId : parseInt(process.env.GEO_CITY_ID_DEFAULT, 10),
     title: { uk: buildListingTitle(row) },
     descr: { uk: description || "" },
-    price: row.price,
+    price: resolvePrice(row),
     price_curr: PRICE_CURR_UAH,
     instock: row.quantity,
     ...fPayload,

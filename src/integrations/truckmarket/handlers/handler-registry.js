@@ -8,13 +8,17 @@ const {
 // Можливі маршрути: { route: "blacklist" | "no_integration" | "dispatch" }.
 
 class HandlerRegistry {
-  constructor() {
+  // blacklist інжектується (дефолт — TYPE_OIL_BLACKLIST з constants), щоб
+  // логіку відсіювання можна було тестувати незалежно від поточного вмісту
+  // константи: зараз вона порожня, бо всі типи оливи змаплені.
+  constructor({ blacklist = TYPE_OIL_BLACKLIST } = {}) {
     this.byType = new Map(); // name_type_oil → handler
+    this.blacklist = blacklist;
   }
 
   register(types, handler) {
     for (const t of types) {
-      if (TYPE_OIL_BLACKLIST.has(t)) continue;
+      if (this.blacklist.has(t)) continue;
       this.byType.set(t, handler);
     }
   }
@@ -22,7 +26,7 @@ class HandlerRegistry {
   registeredTypes() { return Array.from(this.byType.keys()); }
 
   pick(nameTypeOil) {
-    if (TYPE_OIL_BLACKLIST.has(nameTypeOil)) {
+    if (this.blacklist.has(nameTypeOil)) {
       return { route: "blacklist", reason: `тип "${nameTypeOil}" у blacklist` };
     }
     const handler = this.byType.get(nameTypeOil);

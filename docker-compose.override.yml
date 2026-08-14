@@ -1,0 +1,17 @@
+# Локальний dev-оверрайд (Windows). НЕ для prod.
+# Публікує порт app на 127.0.0.1, щоб UI був доступний з хоста без Caddy.
+#
+# Caddy локально не піднімаємо: Let's Encrypt не видасть сертифікат на localhost.
+# Але compose інтерполює весь базовий файл до вибору сервісів, і ${APP_DOMAIN:?...}
+# у caddy валить парсинг — тому APP_DOMAIN треба передати у виклик:
+#   APP_DOMAIN=localhost docker compose up -d db app
+services:
+  app:
+    environment:
+      # На prod NODE_ENV=production робить session-cookie Secure (server.js:83),
+      # і по HTTP браузер її не збереже — логін зациклиться на /login.
+      # Локально ходимо без TLS, тому Secure треба вимкнути.
+      NODE_ENV: development
+      TRUST_PROXY: "false"
+    ports:
+      - "127.0.0.1:${PORT:-3000}:3000"
