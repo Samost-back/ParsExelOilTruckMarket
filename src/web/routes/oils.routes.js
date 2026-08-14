@@ -407,7 +407,8 @@ async function oilsRoutes(fastify, { db, runner }) {
       ],
     );
     const priceNum = b.price != null && String(b.price).trim() !== "" ? Math.round(num(b.price)) : null;
-    if (priceNum != null) await applyPriceChange(db, id, priceNum);
+    // Тільки додатна ціна — 0 не зберігаємо (див. /oils/:id/price).
+    if (priceNum != null && priceNum > 0) await applyPriceChange(db, id, priceNum);
 
     const o = await fetchListRow(db, id);
     return reply.type("text/html").send(await renderFragment("_oil-row.ejs", { o }));
@@ -421,7 +422,8 @@ async function oilsRoutes(fastify, { db, runner }) {
     if (!exists.rows.length) return reply.code(404).send("Не знайдено");
     if (raw != null && String(raw).trim() !== "") {
       const n = Math.round(parseFloat(String(raw).replace(",", ".")));
-      if (Number.isFinite(n) && n >= 0) await applyPriceChange(db, id, n);
+      // 0 — не ціна: такі оливи не публікуються на TM, тому й вводити 0 не даємо.
+      if (Number.isFinite(n) && n > 0) await applyPriceChange(db, id, n);
     }
     const o = await fetchListRow(db, id);
     return reply.type("text/html").send(await renderFragment("_oil-row.ejs", { o }));

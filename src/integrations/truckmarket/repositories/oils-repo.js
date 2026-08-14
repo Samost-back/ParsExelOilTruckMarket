@@ -5,6 +5,9 @@
 //   - ще не опубліковані (truck_listing_id IS NULL)
 //   - статус НЕ 'unpublished' (картку зняли вручну — не повертати автоматично)
 //   - статус НЕ 'in_progress' (вже в роботі іншого прогону)
+//   - МАЮТЬ додатну актуальну ціну — без прайсу на інтеграцію не віддаємо
+//     (оголошення з «0 ₴» на TM не створюємо). Фільтр саме SQL-ом, щоб такі
+//     рядки взагалі не діставались із БД.
 const SELECT_PENDING = `
   SELECT o.id, o.name_type_oil, o.name, o.type_oil, o.viscosity_sae,
          o.low_level_saps, o.packaging_volume, o.articul, o.acea, o.api,
@@ -19,6 +22,10 @@ const SELECT_PENDING = `
    WHERE o.truck_listing_id IS NULL
      AND COALESCE(o.truck_status, 'pending') NOT IN ('unpublished', 'in_progress')
      AND o.name_type_oil = ANY($2)
+     AND EXISTS (
+           SELECT 1 FROM oils_price p
+            WHERE p.oils_id = o.id AND p.valid_to IS NULL AND p.price > 0
+         )
    ORDER BY o.name_type_oil, o.id
    LIMIT $1
 `;
@@ -54,6 +61,12 @@ const SELECT_OUTDATED = `
    WHERE o.truck_status = 'outdated'
      AND o.truck_listing_id IS NOT NULL
      AND o.name_type_oil = ANY($2)
+     -- Без додатної ціни оновлення не шлемо: інакше на живому оголошенні
+     -- перезапишемо ціну нулем.
+     AND EXISTS (
+           SELECT 1 FROM oils_price p
+            WHERE p.oils_id = o.id AND p.valid_to IS NULL AND p.price > 0
+         )
    ORDER BY o.name_type_oil, o.id
    LIMIT $1
 `;

@@ -38,6 +38,14 @@ function toNumber(v) {
   return Number.isFinite(n) ? n : null;
 }
 
+// Ціна 0 (чи від'ємна) — це не ціна, а порожня/зламана клітинка прайсу.
+// Пишемо в БД тільки додатну ціну, інакше null — щоб у UI не було «0 ₴».
+function normalizePrice(v) {
+  if (v == null || !Number.isFinite(v) || v <= 0) return null;
+  const rounded = Math.round(v);
+  return rounded > 0 ? rounded : 1;
+}
+
 // SAE-в'язкість із назви: 10w30 / 5W-40 / 75W-90.
 function extractSAE(name) {
   if (!name) return null;
@@ -153,7 +161,7 @@ function parseManagerSheet(rows) {
         car_brand: null,
         brand: block.brand,
         city: null,
-        price: v.price != null ? Math.round(v.price) : null,
+        price: normalizePrice(v.price),
       });
     }
     block = null;
@@ -251,4 +259,5 @@ module.exports = {
   mapSection,
   mapTypeOil,
   syntheticArticul,
+  normalizePrice,
 };

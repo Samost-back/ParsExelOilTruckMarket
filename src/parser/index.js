@@ -90,6 +90,17 @@ function extractSAE(name) {
   const m = name.toString().match(/(\d+W[\s\-/]?\d+|\d+W\b)/i);
   return m ? m[1].toUpperCase().replace(/[\s/]/g, "-") : null;
 }
+// Ціна з колонки «Рекомендована ціна» → ціле число гривень, або null.
+// Два випадки, коли ціни фактично НЕМАЄ (і 0 писати не можна):
+//   1) клітинка порожня / не число → toNumber дав null;
+//   2) клітинка = 0 або від'ємна (порожня формула в Excel повертає 0).
+// Округлення до 10 ₴ — як і було, але воно не має перетворювати реальну
+// дрібну ціну (1..4 ₴) на 0: у такому разі лишаємо мінімум 10 ₴.
+function normalizePrice(v) {
+  if (v == null || !Number.isFinite(v) || v <= 0) return null;
+  const rounded = Math.round(v / 10) * 10;
+  return rounded > 0 ? rounded : 10;
+}
 function parseDescription(text) {
   const result = {
     type_oil: null,
@@ -361,10 +372,11 @@ for (const b of blocks) {
       // коли вже відома integrations-рядок (brand_source / city_source).
       brand: null,
       city: null,
-      price:
-        v.recommended_price != null
-          ? Math.round(v.recommended_price / 10) * 10
-          : null,
+      // Ціна 0 — це НЕ ціна, а порожня/зламана клітинка «Рекомендована ціна»
+      // (порожня формула в Excel дає 0, а не null). Такий 0 раніше потрапляв
+      // у БД і показувався в UI як «0 ₴». Тому: тільки додатна ціна пишеться,
+      // усе інше → null (олива лишається без ціни й не публікується на TM).
+      price: normalizePrice(v.recommended_price),
     });
   }
 }

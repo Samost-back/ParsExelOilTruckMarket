@@ -31,8 +31,8 @@
     <%# Швидке inline-редагування ціни %>
     <form class="price-quick" hx-post="/oils/<%= o.id %>/price"
           hx-target="#oil-row-<%= o.id %>" hx-swap="outerHTML">
-      <input type="number" name="price" value="<%= o.price != null ? o.price : '' %>"
-             min="0" step="1" aria-label="Ціна" />
+      <input type="number" name="price" value="<%= o.price != null && o.price > 0 ? o.price : '' %>"
+             min="1" step="1" aria-label="Ціна" />
       <button type="submit" class="act act-success" title="Зберегти ціну">₴</button>
       <span class="htmx-indicator">…</span>
     </form>
